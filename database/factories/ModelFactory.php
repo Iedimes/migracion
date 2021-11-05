@@ -107,3 +107,14 @@ $factory->define(App\Models\Parentesco::class, static function (Faker\Generator 
         
     ];
 });
+/** @var  \Illuminate\Database\Eloquent\Factory $factory */
+$factory->define(App\Models\PostulanteHasDiscapacidad::class, static function (Faker\Generator $faker) {
+    return [
+        'postulante_id' => $faker->sentence,
+        'discapacidad_id' => $faker->randomNumber(5),
+        'created_at' => $faker->dateTime,
+        'updated_at' => $faker->dateTime,
+        
+        
+    ];
+});

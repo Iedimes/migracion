@@ -42,6 +42,6 @@ class ProjectHasPostulante extends Model
 
     public function conyuge()
     {
-        return $this->hasone(PostulanteHasBeneficiary::class, 'postulante_id', 'postulante_id')->where('parentesco_id', 1);
+        return $this->hasone(PostulanteHasBeneficiary::class, 'postulante_id', 'postulante_id')->whereIn('parentesco_id', [1, 8]);
     }
 }

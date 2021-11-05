@@ -22,22 +22,28 @@ class Postulante extends Model
         'phone',
         'mobile',
         'nexp',
-    
+
     ];
-    
-    
+
+
     protected $dates = [
         'created_at',
         'updated_at',
-    
+
     ];
-    
+    protected $with = ['discapacidad'];
+
     protected $appends = ['resource_url'];
 
     /* ************************ ACCESSOR ************************* */
 
     public function getResourceUrlAttribute()
     {
-        return url('/admin/postulantes/'.$this->getKey());
+        return url('/admin/postulantes/' . $this->getKey());
+    }
+
+    public function discapacidad()
+    {
+        return $this->hasOne(PostulanteHasDiscapacidad::class);
     }
 }

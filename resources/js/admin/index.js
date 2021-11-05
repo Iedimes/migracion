@@ -7,3 +7,4 @@ import './project-has-postulante';
 import './postulante';
 import './postulante-has-beneficiary';
 import './parentesco';
+import './postulante-has-discapacidad';

@@ -2,12 +2,13 @@
     <nav class="sidebar-nav">
         <ul class="nav">
             <li class="nav-title">{{ trans('brackets/admin-ui::admin.sidebar.content') }}</li>
-            <li class="nav-item"><a class="nav-link" href="{{ url('admin/projects') }}"><i class="nav-icon icon-magnet"></i> {{ trans('admin.project.title') }}</a></li>
+            <!--<li class="nav-item"><a class="nav-link" href="{{ url('admin/projects') }}"><i class="nav-icon icon-magnet"></i> {{ trans('admin.project.title') }}</a></li>-->
            <li class="nav-item"><a class="nav-link" href="{{ url('admin/project-has-expedientes') }}"><i class="nav-icon icon-compass"></i> {{ trans('admin.project-has-expediente.title') }}</a></li>
            <!--<li class="nav-item"><a class="nav-link" href="{{ url('admin/project-has-postulantes') }}"><i class="nav-icon icon-flag"></i> {{ trans('admin.project-has-postulante.title') }}</a></li>
            <li class="nav-item"><a class="nav-link" href="{{ url('admin/postulantes') }}"><i class="nav-icon icon-ghost"></i> {{ trans('admin.postulante.title') }}</a></li>
            <li class="nav-item"><a class="nav-link" href="{{ url('admin/postulante-has-beneficiaries') }}"><i class="nav-icon icon-globe"></i> {{ trans('admin.postulante-has-beneficiary.title') }}</a></li>
            <li class="nav-item"><a class="nav-link" href="{{ url('admin/parentescos') }}"><i class="nav-icon icon-star"></i> {{ trans('admin.parentesco.title') }}</a></li>-->
+           <!--<li class="nav-item"><a class="nav-link" href="{{ url('admin/postulante-has-discapacidads') }}"><i class="nav-icon icon-star"></i> {{ trans('admin.postulante-has-discapacidad.title') }}</a></li>-->
            {{-- Do not delete me :) I'm used for auto-generation menu items --}}
 
             <li class="nav-title">{{ trans('brackets/admin-ui::admin.sidebar.settings') }}</li>

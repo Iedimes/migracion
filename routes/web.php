@@ -67,6 +67,7 @@ Route::middleware(['auth:' . config('admin-auth.defaults.guard'), 'admin'])->gro
             Route::get('{projectHasExpediente}/show',                    'ProjectHasExpedientesController@show')->name('show');
             Route::get('{projectHasExpediente}/migracion',               'ProjectHasExpedientesController@migracion')->name('migracion');
             Route::get('{projectHasExpediente}/migracionpersonas',       'ProjectHasExpedientesController@migracionpersonas')->name('migracion');
+            Route::get('{projectHasExpediente}/migracionsolicitantes',   'ProjectHasExpedientesController@migracionsolicitantes')->name('migracionsolicitantes');
             Route::get('/beneficiarios/{id}',                           'ProjectHasExpedientesController@beneficiarios')->name('beneficiarios');
             Route::get('/create',                                       'ProjectHasExpedientesController@create')->name('create');
             Route::post('/',                                            'ProjectHasExpedientesController@store')->name('store');
@@ -135,6 +136,22 @@ Route::middleware(['auth:' . config('admin-auth.defaults.guard'), 'admin'])->gro
             Route::post('/bulk-destroy',                                'ParentescoController@bulkDestroy')->name('bulk-destroy');
             Route::post('/{parentesco}',                                'ParentescoController@update')->name('update');
             Route::delete('/{parentesco}',                              'ParentescoController@destroy')->name('destroy');
+        });
+    });
+});
+
+
+/* Auto-generated admin routes */
+Route::middleware(['auth:' . config('admin-auth.defaults.guard'), 'admin'])->group(static function () {
+    Route::prefix('admin')->namespace('App\Http\Controllers\Admin')->name('admin/')->group(static function() {
+        Route::prefix('postulante-has-discapacidads')->name('postulante-has-discapacidads/')->group(static function() {
+            Route::get('/',                                             'PostulanteHasDiscapacidadController@index')->name('index');
+            Route::get('/create',                                       'PostulanteHasDiscapacidadController@create')->name('create');
+            Route::post('/',                                            'PostulanteHasDiscapacidadController@store')->name('store');
+            Route::get('/{postulanteHasDiscapacidad}/edit',             'PostulanteHasDiscapacidadController@edit')->name('edit');
+            Route::post('/bulk-destroy',                                'PostulanteHasDiscapacidadController@bulkDestroy')->name('bulk-destroy');
+            Route::post('/{postulanteHasDiscapacidad}',                 'PostulanteHasDiscapacidadController@update')->name('update');
+            Route::delete('/{postulanteHasDiscapacidad}',               'PostulanteHasDiscapacidadController@destroy')->name('destroy');
         });
     });
 });

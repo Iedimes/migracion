@@ -156,5 +156,22 @@ return [
         ],
     ],
 
+    'postulante-has-discapacidad' => [
+        'title' => 'Postulante Has Discapacidad',
+
+        'actions' => [
+            'index' => 'Postulante Has Discapacidad',
+            'create' => 'New Postulante Has Discapacidad',
+            'edit' => 'Edit :name',
+        ],
+
+        'columns' => [
+            'id' => 'ID',
+            'postulante_id' => 'Postulante',
+            'discapacidad_id' => 'Discapacidad',
+            
+        ],
+    ],
+
     // Do not delete me :) I'm used for auto-generation
 ];

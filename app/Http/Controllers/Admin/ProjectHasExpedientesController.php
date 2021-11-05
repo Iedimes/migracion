@@ -9,11 +9,14 @@ use App\Http\Requests\Admin\ProjectHasExpediente\IndexProjectHasExpediente;
 use App\Http\Requests\Admin\ProjectHasExpediente\StoreProjectHasExpediente;
 use App\Http\Requests\Admin\ProjectHasExpediente\UpdateProjectHasExpediente;
 use App\Models\BAMPER;
+use App\Models\IVMSOL;
+use App\Models\IVMSOL2;
 use App\Models\Postulante;
 use App\Models\PostulanteHasBeneficiary;
 use App\Models\Project;
 use App\Models\ProjectHasExpediente;
 use App\Models\ProjectHasPostulante;
+use App\Models\SIG005L1;
 use Brackets\AdminListing\Facades\AdminListing;
 use Exception;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -127,26 +130,8 @@ class ProjectHasExpedientesController extends Controller
 
     public function migracionpersonas($projectHasExpediente)
     {
-
-        //$test = BAMPER::where('PerCod', '  931432   ')->get();
-        //return $test;
-
         $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
         $date = new \DateTime();
-        $string = "PINTOS LOMBARDO MARIA FATIMA";
-
-        $data = "123_String";
-        $whatIWant = substr($string, strpos($string, " ") + 1);
-        //return $whatIWant;
-        //return $output = strtok($string,  ' ');
-        //return date_format($date, 'Y-m-d H:i:s');
-        //$nac = new \DateTime('1985-02-09');
-
-        /*$nac = "2021-11-03 13:39:23";
-        $fecNac = new \DateTime($nac);
-        return $fecNac;*/
-        //return $postulantes;
-
         $estciv = array(
             'SO' => 1,
             'CA' => 2,
@@ -269,6 +254,139 @@ class ProjectHasExpedientesController extends Controller
                 }
             }
         }
+
+        return redirect()->back()->with('success', 'Datos Migrados Correctamente!');
+    }
+
+    public function migracionsolicitantes($projectHasExpediente)
+    {
+
+
+        //return "migracio solicitantes";
+        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+        //return $postulantes;
+        $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
+        //return $exp->project_id;
+        $date = new \DateTime();
+
+        $parent = array(
+            1 => 1,
+            2 => 3,
+            3 => 2,
+            4 => 4,
+            7 => 9,
+            8 => 1,
+            9 => 5,
+            10 => 6,
+            11 => 5,
+            14 => 10,
+        );
+
+        foreach ($postulantes as $key => $value) {
+
+            $user = IVMSOL::where('SolPerCod',  $value->postulante->cedula)->first();
+            $mesa = SIG005L1::where('ExpDPerCod',  $value->postulante->cedula)
+                ->where('NroExp', $exp->exp)
+                ->first();
+            if (is_null($value->conyuge)) {
+                $solpercge = "";
+            } else {
+                $solpercge = $value->conyuge->miembros->cedula;
+            }
+
+            if (!$user) {
+
+
+                //return "Expediente: " . $mesa->NroExp . " SolNro: " . substr($mesa->NroExp, 0, -2) . " SolSer: " . substr($mesa->NroExp, -2);
+                $reg = IVMSOL::create([
+                    'SolPerCod' => $value->postulante->cedula,
+                    'SolSer' => substr($mesa->ExpDNro, -2),
+                    'SolNro' => substr($mesa->ExpDNro, 0, -2),
+                    'SolFch' => $mesa->ExpDFec,
+                    'SolTieUni' => '',
+                    'SolAuto' => 'N',
+                    'SolEquipo' => 'N',
+                    'SolMaquin' => 'N',
+                    'SolAnimal' => 'N',
+                    'SolOtros' => '',
+                    'SolTipo' => 12,
+                    'SolInscri' => 'PACOSTA',
+                    'SolComent' => '',
+                    'SolPerCge' => $solpercge,
+                    'SolHabViv' => '',
+                    'SolFum' => date_format($date, 'Y-m-d H:i:s'),
+                    'SolEtapa' => 'S',
+                    'SolReFecAd' => null,
+                    'SolReNroAd' => null,
+                    'SolCodObra' => null,
+                    'SolComent' => "Exp. Social: " . $exp->exp . " Codigo de Proyecto: " . $exp->project_id,
+
+                ]);
+            }
+
+            $pos = BAMPER::where('PerCod', $value->postulante->cedula)->first();
+            $posivms = IVMSOL2::where('GfsCod', $value->postulante->cedula)->first();
+            //return $pos;
+            $datecalc = new \DateTime($pos->PerFchNac);
+            $now = new \DateTime($mesa->ExpDFec);
+            $interval = $now->diff($datecalc);
+            if ($value->postulante->discapacidad->discapacidad_id == 1) {
+                $dis = 'N';
+            } else {
+                $dis = 'S';
+            }
+
+            if (!$posivms) {
+                $reg = IVMSOL2::create([
+                    'SolPerCod' => $value->postulante->cedula,
+                    'GfsCod' => $value->postulante->cedula,
+                    'GfsEdad' => $interval->y,
+                    'ParCod' => 8,
+                    'GfsDis' => $dis,
+                    'GfsImpSue' => $value->postulante->ingreso,
+                    'GfsImpApo' => 0,
+                    'GfsUsuCod' => 'PACOSTA',
+
+                ]);
+            }
+
+
+
+
+            if (count($value->members) > 0) {
+                //return "No vacio";
+                foreach ($value->members as $member) {
+
+                    $miembro = IVMSOL2::where('GfsCod', $member->miembros->cedula)->first();
+                    if (!$miembro) {
+                        $pos = BAMPER::where('PerCod', $member->miembros->cedula)->first();
+                        //$posivms = IVMSOL2::where('GfsCod', $member->postulante->cedula)->first();
+                        //return $pos;
+                        $datecalmember = new \DateTime($pos->PerFchNac);
+                        $now = new \DateTime($mesa->ExpDFec);
+                        $interval = $now->diff($datecalmember);
+                        if ($member->miembros->discapacidad->discapacidad_id == 1) {
+                            $dis = 'N';
+                        } else {
+                            $dis = 'S';
+                        }
+                        $reg = IVMSOL2::create([
+                            'SolPerCod' => $value->postulante->cedula,
+                            'GfsCod' => $member->miembros->cedula,
+                            'GfsEdad' => $interval->y,
+                            'ParCod' =>  $parent[$member->parentesco->id],
+                            'GfsDis' => $dis,
+                            'GfsImpSue' => $member->miembros->ingreso,
+                            'GfsImpApo' => 0,
+                            'GfsUsuCod' => 'PACOSTA',
+
+                        ]);
+                    }
+                }
+            }
+        }
+
+        return redirect()->back()->with('success', 'Datos Migrados Correctamente!');
     }
 
 
