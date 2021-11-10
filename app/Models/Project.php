@@ -31,7 +31,7 @@ class Project extends Model
     ];
 
     protected $appends = ['resource_url'];
-    protected $with = ['postulantes'];
+    //protected $with = ['postulantes'];
     protected $withCount = ['postulantes'];
 
     /* ************************ ACCESSOR ************************* */

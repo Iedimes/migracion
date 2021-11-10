@@ -64,7 +64,7 @@ class ProjectHasExpedientesController extends Controller
             return ['data' => $data];
         }
 
-
+        //return $data;
         return view('admin.project-has-expediente.index', ['data' => $data]);
     }
 
@@ -270,7 +270,9 @@ class ProjectHasExpedientesController extends Controller
             //return $reg;
 
             foreach ($postulantes as $key => $value) {
-                $user = POSSVS1::where('PsvCedTit',  $value->postulante->cedula)->first();
+                $user = POSSVS1::where('PsvCedTit',  $value->postulante->cedula)
+                    ->where('PsvCod', $request->id)
+                    ->first();
                 $nombre = $value->postulante->last_name . ', ' . $value->postulante->first_name;
                 $mesa = SIG005L1::where('ExpDPerCod',  $value->postulante->cedula)
                     ->where('NroExp', $exp->exp)
@@ -407,7 +409,7 @@ class ProjectHasExpedientesController extends Controller
                     'SolPerCod' => $value->postulante->cedula,
                     'SolSer' => substr($mesa->ExpDNro, -2),
                     'SolNro' => substr($mesa->ExpDNro, 0, -2),
-                    //'SolFch' => $mesa->ExpDFec,
+                    'SolFch' => $mesa->ExpDFec,
                     'SolTieUni' => '',
                     'SolAuto' => 'N',
                     'SolEquipo' => 'N',
@@ -419,7 +421,7 @@ class ProjectHasExpedientesController extends Controller
                     'SolComent' => '',
                     'SolPerCge' => $solpercge,
                     'SolHabViv' => '',
-                    //'SolFum' => date_format($date, 'Y-m-d H:i:s'),
+                    'SolFum' => date_format($date, 'Ymd H:i:s'),
                     'SolEtapa' => 'S',
                     'SolReFecAd' => null,
                     'SolReNroAd' => null,

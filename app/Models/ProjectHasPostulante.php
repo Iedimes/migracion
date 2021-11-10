@@ -20,7 +20,7 @@ class ProjectHasPostulante extends Model
     ];
 
     protected $appends = ['resource_url'];
-    protected $with = ['postulante', 'members', 'conyuge'];
+    protected $with = ['postulante'/*, 'members', 'conyuge'*/];
     protected $withCount = ['members'];
 
     /* ************************ ACCESSOR ************************* */
