@@ -20,8 +20,8 @@ class ProjectHasPostulante extends Model
     ];
 
     protected $appends = ['resource_url'];
-    protected $with = ['postulante'/*, 'members', 'conyuge'*/];
-    protected $withCount = ['members'];
+    protected $with = ['postulante', 'otros'/*, 'members', 'conyuge'*/];
+    protected $withCount = ['members', 'childrens'];
 
     /* ************************ ACCESSOR ************************* */
 
@@ -40,8 +40,18 @@ class ProjectHasPostulante extends Model
         return $this->hasMany(PostulanteHasBeneficiary::class, 'postulante_id', 'postulante_id');
     }
 
+    public function childrens()
+    {
+        return $this->hasMany(PostulanteHasBeneficiary::class, 'postulante_id', 'postulante_id')->whereIn('parentesco_id', [3]);
+    }
+
     public function conyuge()
     {
         return $this->hasone(PostulanteHasBeneficiary::class, 'postulante_id', 'postulante_id')->whereIn('parentesco_id', [1, 8]);
+    }
+
+    public function otros()
+    {
+        return $this->hasone(PostulanteHasBeneficiary::class, 'postulante_id', 'postulante_id')->whereNotIn('parentesco_id', [1, 8]);
     }
 }

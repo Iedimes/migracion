@@ -36,6 +36,7 @@ class PostulanteHasBeneficiary extends Model
         return $this->belongsTo(Postulante::class, 'miembro_id');
     }
 
+
     public function parentesco()
     {
         return $this->belongsTo(Parentesco::class, 'parentesco_id');

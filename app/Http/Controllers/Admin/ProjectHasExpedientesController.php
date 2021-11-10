@@ -13,6 +13,7 @@ use App\Models\IVMSOL;
 use App\Models\IVMSOL2;
 use App\Models\POSSVS;
 use App\Models\POSSVS1;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Postulante;
 use App\Models\PostulanteHasBeneficiary;
 use App\Models\Project;
@@ -150,6 +151,7 @@ class ProjectHasExpedientesController extends Controller
         foreach ($postulantes as $key => $value) {
 
             $user = BAMPER::where('PerCod',  $value->postulante->cedula)->first();
+            $email = Auth::user()->email;
             //return mb_convert_encoding($user->PerNom, 'Windows-1252', 'UTF-8');
             $nombre = $value->postulante->last_name . ' ' . $value->postulante->first_name;
             $nac = new \DateTime($value->postulante->birthdate);
@@ -196,7 +198,7 @@ class ProjectHasExpedientesController extends Controller
                     'PerRelPar' => $relpar[$value->postulante->marital_status],
                     //'PerEstCiv' => 1,
                     'PerFUM' => date_format($date, 'Y-m-d H:i:s'),
-                    'PerUser' => 'PACOSTA'
+                    'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
                 ]);
             }
 
@@ -246,7 +248,7 @@ class ProjectHasExpedientesController extends Controller
                             'CiuId' => 179,
                             'PerRelPar' => $relpar[$member->miembros->marital_status],
                             'PerFUM' => date_format($date, 'Y-m-d H:i:s'),
-                            'PerUser' => 'PACOSTA'
+                            'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
                         ]);
                         //$nac = new \DateTime();
                     }
@@ -263,7 +265,8 @@ class ProjectHasExpedientesController extends Controller
         $reg = POSSVS::where('PsvCod', $request->id)->first();
         $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
         $date = new \DateTime();
-
+        $email = Auth::user()->email;
+        //return strstr($email, '@', true);
         if ($reg) {
             # code...
             $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
@@ -280,7 +283,7 @@ class ProjectHasExpedientesController extends Controller
                 if (is_null($value->conyuge)) {
                     $solpercge = "";
                     $conyuname = "";
-                    $ingconyuge = "";
+                    $ingconyuge = 0;
                     $c = null;
                 } else {
                     $solpercge = $value->conyuge->miembros->cedula;
@@ -299,6 +302,7 @@ class ProjectHasExpedientesController extends Controller
                 $nac = new \DateTime($value->postulante->birthdate);
                 $f = date_format($nac, 'Ymd');
 
+
                 if (!$user) {
 
                     $reg = POSSVS1::create([
@@ -316,7 +320,7 @@ class ProjectHasExpedientesController extends Controller
                         'PsvCedCge' => $solpercge,
                         'PsvNomCge' => mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8'),
                         'PsvNivel' => 4,
-                        'PsvCanHij' => 0,
+                        'PsvCanHij' => $value->childrens_count,
                         'PsvDiscap' => $dis,
                         'PsvTerEdad' => 'N',
                         'PsvSosten' => 'N',
@@ -325,13 +329,13 @@ class ProjectHasExpedientesController extends Controller
                         'PsvDomi' => mb_convert_encoding($value->postulante->address, 'Windows-1252', 'UTF-8'),
                         'PsvObs' => '',
                         'PsvRegCon' => 'S',
-                        'PsvUsuIng' => 'PACOSTA',
+                        'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
                         'PsvFecIng' => date_format($date, 'Y-m-d H:i:s'),
                         'PsvIngTit' => $value->postulante->ingreso,
                         'PsvIngCge' => $ingconyuge,
                         'PsvIngOtr' => 0,
-                        'PsvIngFam' => 0,
-                        'PsvNomSos' => 'NO',
+                        'PsvIngFam' => $value->postulante->ingreso + $ingconyuge,
+                        'PsvNomSos' => '',
                         'PsvCgeFNac' => $c,
                         'PsvTitFNac' => $f
                         /*'SolPerCod' => $value->postulante->cedula,
@@ -377,6 +381,7 @@ class ProjectHasExpedientesController extends Controller
         $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
         //return $exp->project_id;
         $date = new \DateTime();
+        $email = Auth::user()->email;
 
         $parent = array(
             1 => 1,
@@ -417,7 +422,7 @@ class ProjectHasExpedientesController extends Controller
                     'SolAnimal' => 'N',
                     'SolOtros' => '',
                     'SolTipo' => 12,
-                    'SolInscri' => 'PACOSTA',
+                    'SolInscri' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
                     'SolComent' => '',
                     'SolPerCge' => $solpercge,
                     'SolHabViv' => '',
@@ -452,7 +457,7 @@ class ProjectHasExpedientesController extends Controller
                     'GfsDis' => $dis,
                     'GfsImpSue' => $value->postulante->ingreso,
                     'GfsImpApo' => 0,
-                    'GfsUsuCod' => 'PACOSTA',
+                    'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
                     'GfsFecAlta' => date_format($date, 'Y-m-d H:i:s')
 
                 ]);
@@ -483,7 +488,7 @@ class ProjectHasExpedientesController extends Controller
                             'GfsDis' => $dis,
                             'GfsImpSue' => $member->miembros->ingreso,
                             'GfsImpApo' => 0,
-                            'GfsUsuCod' => 'PACOSTA',
+                            'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
                             'GfsFecAlta' => date_format($date, 'Y-m-d H:i:s')
 
                         ]);
@@ -507,7 +512,7 @@ class ProjectHasExpedientesController extends Controller
         //5658
         //return $id;
         $members = PostulanteHasBeneficiary::where('postulante_id', $id->postulante_id)->get();
-        //return $members;
+        return $members;
         return view('admin.project-has-expediente.beneficiarios', compact('id', 'members'));
     }
 
