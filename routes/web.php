@@ -68,6 +68,7 @@ Route::middleware(['auth:' . config('admin-auth.defaults.guard'), 'admin'])->gro
             Route::get('{projectHasExpediente}/migracion',               'ProjectHasExpedientesController@migracion')->name('migracion');
             Route::get('{projectHasExpediente}/migracionpersonas',       'ProjectHasExpedientesController@migracionpersonas')->name('migracion');
             Route::get('{projectHasExpediente}/migracionsolicitantes',   'ProjectHasExpedientesController@migracionsolicitantes')->name('migracionsolicitantes');
+            Route::get('{projectHasExpediente}/migracionshd',           'ProjectHasExpedientesController@migracionshd')->name('migracionshd');
             Route::get('/beneficiarios/{id}',                           'ProjectHasExpedientesController@beneficiarios')->name('beneficiarios');
             Route::get('/create',                                       'ProjectHasExpedientesController@create')->name('create');
             Route::post('/',                                            'ProjectHasExpedientesController@store')->name('store');
@@ -143,8 +144,8 @@ Route::middleware(['auth:' . config('admin-auth.defaults.guard'), 'admin'])->gro
 
 /* Auto-generated admin routes */
 Route::middleware(['auth:' . config('admin-auth.defaults.guard'), 'admin'])->group(static function () {
-    Route::prefix('admin')->namespace('App\Http\Controllers\Admin')->name('admin/')->group(static function() {
-        Route::prefix('postulante-has-discapacidads')->name('postulante-has-discapacidads/')->group(static function() {
+    Route::prefix('admin')->namespace('App\Http\Controllers\Admin')->name('admin/')->group(static function () {
+        Route::prefix('postulante-has-discapacidads')->name('postulante-has-discapacidads/')->group(static function () {
             Route::get('/',                                             'PostulanteHasDiscapacidadController@index')->name('index');
             Route::get('/create',                                       'PostulanteHasDiscapacidadController@create')->name('create');
             Route::post('/',                                            'PostulanteHasDiscapacidadController@store')->name('store');

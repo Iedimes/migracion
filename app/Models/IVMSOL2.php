@@ -21,6 +21,7 @@ class IVMSOL2 extends Model
         'GfsImpSue',
         'GfsImpApo',
         'GfsUsuCod',
+        'GfsFecAlta'
     ];
 
 

@@ -11,6 +11,8 @@ use App\Http\Requests\Admin\ProjectHasExpediente\UpdateProjectHasExpediente;
 use App\Models\BAMPER;
 use App\Models\IVMSOL;
 use App\Models\IVMSOL2;
+use App\Models\POSSVS;
+use App\Models\POSSVS1;
 use App\Models\Postulante;
 use App\Models\PostulanteHasBeneficiary;
 use App\Models\Project;
@@ -27,6 +29,7 @@ use Illuminate\Http\Response;
 use Illuminate\Routing\Redirector;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Illuminate\Http\Request;
 use Carbon\Carbon;
 
 class ProjectHasExpedientesController extends Controller
@@ -121,10 +124,6 @@ class ProjectHasExpedientesController extends Controller
         //$this->authorize('admin.project-has-expediente.show', $projectHasExpediente);
         $project = Project::find($projectHasExpediente);
         //return $project;
-
-        //$postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
-        //return $postulantes;
-        // TODO your code goes here
         return view('admin.project-has-expediente.migracion', compact('project'));
     }
 
@@ -258,9 +257,117 @@ class ProjectHasExpedientesController extends Controller
         return redirect()->back()->with('success', 'Datos Migrados Correctamente!');
     }
 
-    public function migracionsolicitantes($projectHasExpediente)
+    public function migracionshd($projectHasExpediente, Request $request)
     {
 
+        $reg = POSSVS::where('PsvCod', $request->id)->first();
+        $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
+        $date = new \DateTime();
+
+        if ($reg) {
+            # code...
+            $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+            //return $reg;
+
+            foreach ($postulantes as $key => $value) {
+                $user = POSSVS1::where('PsvCedTit',  $value->postulante->cedula)->first();
+                $nombre = $value->postulante->last_name . ', ' . $value->postulante->first_name;
+                $mesa = SIG005L1::where('ExpDPerCod',  $value->postulante->cedula)
+                    ->where('NroExp', $exp->exp)
+                    ->first();
+                if (is_null($value->conyuge)) {
+                    $solpercge = "";
+                    $conyuname = "";
+                    $ingconyuge = "";
+                    $c = null;
+                } else {
+                    $solpercge = $value->conyuge->miembros->cedula;
+                    $conyuname = $value->conyuge->miembros->last_name . ", " . $value->conyuge->miembros->first_name;
+                    $ingconyuge = $value->conyuge->miembros->ingreso;
+                    $con = new \DateTime($value->conyuge->miembros->birthdate);
+                    $c = date_format($con, 'Ymd');
+                }
+
+                if ($value->postulante->discapacidad->discapacidad_id == 1) {
+                    $dis = 'N';
+                } else {
+                    $dis = 'S';
+                }
+
+                $nac = new \DateTime($value->postulante->birthdate);
+                $f = date_format($nac, 'Ymd');
+
+                if (!$user) {
+
+                    $reg = POSSVS1::create([
+                        'PsvCod' => $request->id,
+                        'Psvord' => $key + 1,
+                        'PsvBibNro' => 0,
+                        'PsvExpNro' => $mesa->ExpDNro,
+                        'PsvExpS' => 'A',
+                        'PsvTDPos' => 'C',
+                        'PsvTDPosM' => '',
+                        'PsvCedTit' => $value->postulante->cedula,
+                        'PsvNomTit' => mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8'),
+                        'PsvTDCge' => 'C',
+                        'PsvTDCgeM' => '',
+                        'PsvCedCge' => $solpercge,
+                        'PsvNomCge' => mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8'),
+                        'PsvNivel' => 4,
+                        'PsvCanHij' => 0,
+                        'PsvDiscap' => $dis,
+                        'PsvTerEdad' => 'N',
+                        'PsvSosten' => 'N',
+                        'PsvAporte' => 0, //$value->postulante->ingreso,
+                        'PsvIfac' => '',
+                        'PsvDomi' => mb_convert_encoding($value->postulante->address, 'Windows-1252', 'UTF-8'),
+                        'PsvObs' => '',
+                        'PsvRegCon' => 'S',
+                        'PsvUsuIng' => 'PACOSTA',
+                        'PsvFecIng' => date_format($date, 'Y-m-d H:i:s'),
+                        'PsvIngTit' => $value->postulante->ingreso,
+                        'PsvIngCge' => $ingconyuge,
+                        'PsvIngOtr' => 0,
+                        'PsvIngFam' => 0,
+                        'PsvNomSos' => 'NO',
+                        'PsvCgeFNac' => $c,
+                        'PsvTitFNac' => $f
+                        /*'SolPerCod' => $value->postulante->cedula,
+                        'SolSer' => substr($mesa->ExpDNro, -2),
+                        'SolNro' => substr($mesa->ExpDNro, 0, -2),
+                        'SolFch' => $mesa->ExpDFec,
+                        'SolTieUni' => '',
+                        'SolAuto' => 'N',
+                        'SolEquipo' => 'N',
+                        'SolMaquin' => 'N',
+                        'SolAnimal' => 'N',
+                        'SolOtros' => '',
+                        'SolTipo' => 12,
+                        'SolInscri' => 'PACOSTA',
+                        'SolComent' => '',
+                        'SolPerCge' => $solpercge,
+                        'SolHabViv' => '',
+                        'SolFum' => date_format($date, 'Y-m-d H:i:s'),
+                        'SolEtapa' => 'S',
+                        'SolReFecAd' => null,
+                        'SolReNroAd' => null,
+                        'SolCodObra' => null,
+                        'SolComent' => "Exp. Social: " . $exp->exp . " Codigo de Proyecto: " . $exp->project_id,*/
+
+                    ]);
+                }
+            }
+
+            return redirect()->back()->with('success', 'Datos Migrados Correctamente!');
+        } else {
+            return redirect()->back()->with('error', 'No se encontro planilla SHD!');
+        }
+
+        //return $request->id;
+    }
+
+    public function migracionsolicitantes($projectHasExpediente)
+    {
 
         //return "migracio solicitantes";
         $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
@@ -296,13 +403,11 @@ class ProjectHasExpedientesController extends Controller
 
             if (!$user) {
 
-
-                //return "Expediente: " . $mesa->NroExp . " SolNro: " . substr($mesa->NroExp, 0, -2) . " SolSer: " . substr($mesa->NroExp, -2);
                 $reg = IVMSOL::create([
                     'SolPerCod' => $value->postulante->cedula,
                     'SolSer' => substr($mesa->ExpDNro, -2),
                     'SolNro' => substr($mesa->ExpDNro, 0, -2),
-                    'SolFch' => $mesa->ExpDFec,
+                    //'SolFch' => $mesa->ExpDFec,
                     'SolTieUni' => '',
                     'SolAuto' => 'N',
                     'SolEquipo' => 'N',
@@ -314,7 +419,7 @@ class ProjectHasExpedientesController extends Controller
                     'SolComent' => '',
                     'SolPerCge' => $solpercge,
                     'SolHabViv' => '',
-                    'SolFum' => date_format($date, 'Y-m-d H:i:s'),
+                    //'SolFum' => date_format($date, 'Y-m-d H:i:s'),
                     'SolEtapa' => 'S',
                     'SolReFecAd' => null,
                     'SolReNroAd' => null,
@@ -346,12 +451,10 @@ class ProjectHasExpedientesController extends Controller
                     'GfsImpSue' => $value->postulante->ingreso,
                     'GfsImpApo' => 0,
                     'GfsUsuCod' => 'PACOSTA',
+                    'GfsFecAlta' => date_format($date, 'Y-m-d H:i:s')
 
                 ]);
             }
-
-
-
 
             if (count($value->members) > 0) {
                 //return "No vacio";
@@ -379,6 +482,7 @@ class ProjectHasExpedientesController extends Controller
                             'GfsImpSue' => $member->miembros->ingreso,
                             'GfsImpApo' => 0,
                             'GfsUsuCod' => 'PACOSTA',
+                            'GfsFecAlta' => date_format($date, 'Y-m-d H:i:s')
 
                         ]);
                     }
