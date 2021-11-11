@@ -512,7 +512,7 @@ class ProjectHasExpedientesController extends Controller
         //5658
         //return $id;
         $members = PostulanteHasBeneficiary::where('postulante_id', $id->postulante_id)->get();
-        return $members;
+        //return $members;
         return view('admin.project-has-expediente.beneficiarios', compact('id', 'members'));
     }
 
