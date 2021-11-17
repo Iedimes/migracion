@@ -183,7 +183,7 @@ class ProjectHasExpedientesController extends Controller
                     'PerNomPri' => mb_convert_encoding($nompripos, 'Windows-1252', 'UTF-8'),
                     'PerApeSeg' => mb_convert_encoding($apesegpos, 'Windows-1252', 'UTF-8'),
                     'PerNomSeg' => mb_convert_encoding($nomsegpos, 'Windows-1252', 'UTF-8'),
-                    'PerDomic' => mb_convert_encoding($value->postulante->address, 'Windows-1252', 'UTF-8'),
+                    'PerDomic' => mb_convert_encoding(substr($value->postulante->address, 0, 60), 'Windows-1252', 'UTF-8'),
                     'PerTel1' => $value->postulante->phone,
                     'PerTel2' => $value->postulante->mobile,
                     'PerEstCiv' => $estciv[$value->postulante->marital_status],
@@ -197,7 +197,7 @@ class ProjectHasExpedientesController extends Controller
                     'CiuId' => 179,
                     'PerRelPar' => $relpar[$value->postulante->marital_status],
                     //'PerEstCiv' => 1,
-                    'PerFUM' => date_format($date, 'Y-m-d H:i:s'),
+                    'PerFUM' => date_format($date, 'Ymd H:i:s'),
                     'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
                 ]);
             }
@@ -235,7 +235,7 @@ class ProjectHasExpedientesController extends Controller
                             'PerApeSeg' => mb_convert_encoding($apeseg, 'Windows-1252', 'UTF-8'),
                             'PerNomSeg' => mb_convert_encoding($nomseg, 'Windows-1252', 'UTF-8'),
                             'PerEstCiv' => $estciv[$member->miembros->marital_status],
-                            'PerDomic' => mb_convert_encoding($member->miembros->address, 'Windows-1252', 'UTF-8'),
+                            'PerDomic' => mb_convert_encoding(substr($member->miembros->address, 0, 60), 'Windows-1252', 'UTF-8'),
                             'PerTel1' => $member->miembros->phone,
                             'PerTel2' => $member->miembros->mobile,
                             'PerTpDoc' => 'CID',
@@ -247,7 +247,7 @@ class ProjectHasExpedientesController extends Controller
                             'DptoId' => 11,
                             'CiuId' => 179,
                             'PerRelPar' => $relpar[$member->miembros->marital_status],
-                            'PerFUM' => date_format($date, 'Y-m-d H:i:s'),
+                            'PerFUM' => date_format($date, 'Ymd H:i:s'),
                             'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
                         ]);
                         //$nac = new \DateTime();
@@ -330,7 +330,7 @@ class ProjectHasExpedientesController extends Controller
                         'PsvObs' => '',
                         'PsvRegCon' => 'S',
                         'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                        'PsvFecIng' => date_format($date, 'Y-m-d H:i:s'),
+                        'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
                         'PsvIngTit' => $value->postulante->ingreso,
                         'PsvIngCge' => $ingconyuge,
                         'PsvIngOtr' => 0,
@@ -458,7 +458,7 @@ class ProjectHasExpedientesController extends Controller
                     'GfsImpSue' => $value->postulante->ingreso,
                     'GfsImpApo' => 0,
                     'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                    'GfsFecAlta' => date_format($date, 'Y-m-d H:i:s')
+                    'GfsFecAlta' => date_format($date, 'Ymd H:i:s')
 
                 ]);
             }
@@ -489,7 +489,7 @@ class ProjectHasExpedientesController extends Controller
                             'GfsImpSue' => $member->miembros->ingreso,
                             'GfsImpApo' => 0,
                             'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                            'GfsFecAlta' => date_format($date, 'Y-m-d H:i:s')
+                            'GfsFecAlta' => date_format($date, 'Ymd H:i:s')
 
                         ]);
                     }
