@@ -326,7 +326,7 @@ class ProjectHasExpedientesController extends Controller
                         'PsvSosten' => 'N',
                         'PsvAporte' => 0, //$value->postulante->ingreso,
                         'PsvIfac' => '',
-                        'PsvDomi' => mb_convert_encoding($value->postulante->address, 'Windows-1252', 'UTF-8'),
+                        'PsvDomi' => mb_convert_encoding(substr($value->postulante->address, 0, 60), 'Windows-1252', 'UTF-8'),
                         'PsvObs' => '',
                         'PsvRegCon' => 'S',
                         'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
@@ -338,27 +338,6 @@ class ProjectHasExpedientesController extends Controller
                         'PsvNomSos' => '',
                         'PsvCgeFNac' => $c,
                         'PsvTitFNac' => $f
-                        /*'SolPerCod' => $value->postulante->cedula,
-                        'SolSer' => substr($mesa->ExpDNro, -2),
-                        'SolNro' => substr($mesa->ExpDNro, 0, -2),
-                        'SolFch' => $mesa->ExpDFec,
-                        'SolTieUni' => '',
-                        'SolAuto' => 'N',
-                        'SolEquipo' => 'N',
-                        'SolMaquin' => 'N',
-                        'SolAnimal' => 'N',
-                        'SolOtros' => '',
-                        'SolTipo' => 12,
-                        'SolInscri' => 'PACOSTA',
-                        'SolComent' => '',
-                        'SolPerCge' => $solpercge,
-                        'SolHabViv' => '',
-                        'SolFum' => date_format($date, 'Y-m-d H:i:s'),
-                        'SolEtapa' => 'S',
-                        'SolReFecAd' => null,
-                        'SolReNroAd' => null,
-                        'SolCodObra' => null,
-                        'SolComent' => "Exp. Social: " . $exp->exp . " Codigo de Proyecto: " . $exp->project_id,*/
 
                     ]);
                 }
