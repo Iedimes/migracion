@@ -402,6 +402,8 @@ class ProjectHasExpedientesController extends Controller
             $mesa = SIG005L1::where('ExpDPerCod',  $value->postulante->cedula)
                 ->where('NroExp', $exp->exp)
                 ->first();
+            $expfec =
+                $nac = new \DateTime($mesa->ExpDFec);
             if (is_null($value->conyuge)) {
                 $solpercge = "";
             } else {
@@ -414,7 +416,7 @@ class ProjectHasExpedientesController extends Controller
                     'SolPerCod' => $value->postulante->cedula,
                     'SolSer' => substr($mesa->ExpDNro, -2),
                     'SolNro' => substr($mesa->ExpDNro, 0, -2),
-                    'SolFch' => $mesa->ExpDFec,
+                    'SolFch' => date_format($expfec, 'Ymd H:i:s'),
                     'SolTieUni' => '',
                     'SolAuto' => 'N',
                     'SolEquipo' => 'N',
