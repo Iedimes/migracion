@@ -48,7 +48,8 @@ class POSSVS1 extends Model
         'PsvIngFam',
         'PsvNomSos',
         'PsvTitFNac',
-        'PsvCgeFNac'
+        'PsvCgeFNac',
+        'PsvTerreno'
 
 
     ];

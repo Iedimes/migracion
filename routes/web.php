@@ -66,7 +66,7 @@ Route::middleware(['auth:' . config('admin-auth.defaults.guard'), 'admin'])->gro
             Route::get('/',                                             'ProjectHasExpedientesController@index')->name('index');
             Route::get('{projectHasExpediente}/show',                    'ProjectHasExpedientesController@show')->name('show');
             Route::get('{projectHasExpediente}/migracion',               'ProjectHasExpedientesController@migracion')->name('migracion');
-            Route::get('{projectHasExpediente}/migracionpersonas',       'ProjectHasExpedientesController@migracionpersonas')->name('migracion');
+            Route::get('{projectHasExpediente}/migracionpersonas',       'ProjectHasExpedientesController@migracionpersonas')->name('migracionpersonas');
             Route::get('{projectHasExpediente}/migracionsolicitantes',   'ProjectHasExpedientesController@migracionsolicitantes')->name('migracionsolicitantes');
             Route::get('{projectHasExpediente}/migracionshd',           'ProjectHasExpedientesController@migracionshd')->name('migracionshd');
             Route::get('/beneficiarios/{id}',                           'ProjectHasExpedientesController@beneficiarios')->name('beneficiarios');

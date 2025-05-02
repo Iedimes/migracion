@@ -20,6 +20,7 @@ use App\Models\Project;
 use App\Models\ProjectHasExpediente;
 use App\Models\ProjectHasPostulante;
 use App\Models\SIG005L1;
+use App\Models\Land;
 use Brackets\AdminListing\Facades\AdminListing;
 use Exception;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -32,6 +33,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class ProjectHasExpedientesController extends Controller
 {
@@ -46,15 +48,15 @@ class ProjectHasExpedientesController extends Controller
     {
         // create and AdminListing instance for a specific model and
         $data = AdminListing::create(ProjectHasExpediente::class)->processRequestAndGet(
-            // pass the request with params
             $request,
-
-            // set columns to query
             ['id', 'project_id', 'exp'],
-
-            // set columns to searchIn
-            ['id', 'exp']
+            ['id', 'exp'],
+            function ($query) {
+                // Solo incluir los registros que tienen un project asociado
+                $query->whereHas('project');
+            }
         );
+
 
         if ($request->ajax()) {
             if ($request->has('bulk')) {
@@ -129,229 +131,114 @@ class ProjectHasExpedientesController extends Controller
     }
 
     public function migracionpersonas($projectHasExpediente)
-    {
-        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
-        $date = new \DateTime();
-        $estciv = array(
-            'SO' => 1,
-            'CA' => 2,
-            'VI' => 6,
-            'ME' => 1,
-        );
+{
+    $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+    $date = new \DateTime();
+    $estciv = array(
+        'SO' => 1,
+        'CA' => 2,
+        'VI' => 6,
+        'ME' => 1,
+    );
 
-        $relpar = array(
-            'SO' => 1,
-            'CA' => 2,
-            'VI' => 1,
-            'ME' => 1,
-        );
+    $relpar = array(
+        'SO' => 1,
+        'CA' => 2,
+        'VI' => 1,
+        'ME' => 1,
+    );
 
-        //return $estciv['VI'];
+    foreach ($postulantes as $key => $value) {
+        $user = BAMPER::where('PerCod',  $value->postulante->cedula)->first();
+        $email = Auth::user()->email;
 
-        foreach ($postulantes as $key => $value) {
+        // Convertir nombre completo y apellidos a UTF-8
+        $nombre = utf8_encode($value->postulante->last_name . ' ' . $value->postulante->first_name);
+        $nac = new \DateTime($value->postulante->birthdate);
+        $f = date_format($nac, 'Ymd');
 
-            $user = BAMPER::where('PerCod',  $value->postulante->cedula)->first();
-            $email = Auth::user()->email;
-            //return mb_convert_encoding($user->PerNom, 'Windows-1252', 'UTF-8');
-            $nombre = $value->postulante->last_name . ' ' . $value->postulante->first_name;
-            $nac = new \DateTime($value->postulante->birthdate);
-            $f = date_format($nac, 'Ymd');
-            //Controlo si tiene espacios para segundo nombre
-            if (str_contains($value->postulante->first_name, ' ')) {
-                $nomsegpos = substr($value->postulante->first_name, strpos($value->postulante->first_name, " ") + 1);
-            } else {
-                $nomsegpos = "";
-            }
+        // Segundo nombre y apellido (si existen)
+        $nomsegpos = str_contains($value->postulante->first_name, ' ') ? substr($value->postulante->first_name, strpos($value->postulante->first_name, " ") + 1) : "";
+        $apesegpos = str_contains($value->postulante->last_name, ' ') ? substr($value->postulante->last_name, strpos($value->postulante->last_name, " ") + 1) : "";
 
-            if (str_contains($value->postulante->last_name, ' ')) {
-                $apesegpos = substr($value->postulante->last_name, strpos($value->postulante->last_name, " ") + 1);
-            } else {
-                $apesegpos = "";
-            }
+        $apepripos = strtok($value->postulante->last_name,  ' ');
+        $nompripos = strtok($value->postulante->first_name,  ' ');
 
-            $apepripos = strtok($value->postulante->last_name,  ' ');
-            $nompripos = strtok($value->postulante->first_name,  ' ');
-
-
-            //$date = new \DateTime();
-
-            if (!$user) {
-                $reg = BAMPER::create([
-                    'PerCod' => $value->postulante->cedula,
-                    'PerNom' => mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8'),
-                    'PerApePri' => mb_convert_encoding($apepripos, 'Windows-1252', 'UTF-8'),
-                    'PerNomPri' => mb_convert_encoding($nompripos, 'Windows-1252', 'UTF-8'),
-                    'PerApeSeg' => mb_convert_encoding($apesegpos, 'Windows-1252', 'UTF-8'),
-                    'PerNomSeg' => mb_convert_encoding($nomsegpos, 'Windows-1252', 'UTF-8'),
-                    'PerDomic' => mb_convert_encoding(substr($value->postulante->address, 0, 60), 'Windows-1252', 'UTF-8'),
-                    'PerTel1' => $value->postulante->phone,
-                    'PerTel2' => $value->postulante->mobile,
-                    'PerEstCiv' => $estciv[$value->postulante->marital_status],
-                    'PerTpDoc' => 'CID',
-                    'PerFchNac' => $f,
-                    'PerSexo' => $value->postulante->gender,
-                    'ProCod' => 58,
-                    'ActCod' => 7,
-                    'PerNac' => 1,
-                    'DptoId' => 11,
-                    'CiuId' => 179,
-                    'PerRelPar' => $relpar[$value->postulante->marital_status],
-                    //'PerEstCiv' => 1,
-                    'PerFUM' => date_format($date, 'Ymd H:i:s'),
-                    'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
-                ]);
-            }
-
-
-
-
-            if (count($value->members) > 0) {
-                //return "No vacio";
-                foreach ($value->members as $member) {
-
-                    $miembro = BAMPER::where('PerCod', $member->miembros->cedula)->first();
-                    if (!$miembro) {
-                        $nombremiembro = $member->miembros->last_name . ' ' . $member->miembros->first_name;
-                        $nac = new \DateTime($member->miembros->birthdate);
-                        $apepri = strtok($member->miembros->last_name,  ' ');
-                        $nompri = strtok($member->miembros->first_name,  ' ');
-
-                        if (str_contains($member->miembros->first_name, ' ')) {
-                            $nomseg = substr($member->miembros->first_name, strpos($member->miembros->first_name, " ") + 1);
-                        } else {
-                            $nomseg = "";
-                        }
-
-                        if (str_contains($member->miembros->last_name, ' ')) {
-                            $apeseg = substr($member->miembros->last_name, strpos($member->miembros->last_name, " ") + 1);
-                        } else {
-                            $apeseg = "";
-                        }
-                        $reg = BAMPER::create([
-                            'PerCod' => $member->miembros->cedula,
-                            'PerNom' => mb_convert_encoding($nombremiembro, 'Windows-1252', 'UTF-8'),
-                            'PerApePri' => mb_convert_encoding($apepri, 'Windows-1252', 'UTF-8'),
-                            'PerNomPri' => mb_convert_encoding($nompri, 'Windows-1252', 'UTF-8'),
-                            'PerApeSeg' => mb_convert_encoding($apeseg, 'Windows-1252', 'UTF-8'),
-                            'PerNomSeg' => mb_convert_encoding($nomseg, 'Windows-1252', 'UTF-8'),
-                            'PerEstCiv' => $estciv[$member->miembros->marital_status],
-                            'PerDomic' => mb_convert_encoding(substr($member->miembros->address, 0, 60), 'Windows-1252', 'UTF-8'),
-                            'PerTel1' => $member->miembros->phone,
-                            'PerTel2' => $member->miembros->mobile,
-                            'PerTpDoc' => 'CID',
-                            'ProCod' => 58,
-                            'PerFchNac' => date_format($nac, 'Ymd'),
-                            'PerSexo' => $member->miembros->gender,
-                            'ActCod' => 7,
-                            'PerNac' => 1,
-                            'DptoId' => 11,
-                            'CiuId' => 179,
-                            'PerRelPar' => $relpar[$member->miembros->marital_status],
-                            'PerFUM' => date_format($date, 'Ymd H:i:s'),
-                            'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
-                        ]);
-                        //$nac = new \DateTime();
-                    }
-                }
-            }
+        if (!$user) {
+            $reg = BAMPER::create([
+                'PerCod' => $value->postulante->cedula,
+                'PerNom' => utf8_encode($nombre),
+                'PerApePri' => utf8_encode($apepripos),
+                'PerNomPri' => utf8_encode($nompripos),
+                'PerApeSeg' => utf8_encode($apesegpos),
+                'PerNomSeg' => utf8_encode($nomsegpos),
+                'PerDomic' => utf8_encode(substr($value->postulante->address, 0, 60)),
+                'PerTel1' => $value->postulante->phone,
+                'PerTel2' => $value->postulante->mobile,
+                'PerEstCiv' => $estciv[$value->postulante->marital_status],
+                'PerTpDoc' => 'CID',
+                'PerFchNac' => $f,
+                'PerSexo' => $value->postulante->gender,
+                'ProCod' => 58,
+                'ActCod' => 7,
+                'PerNac' => 1,
+                'DptoId' => 11,
+                'CiuId' => 179,
+                'PerRelPar' => $relpar[$value->postulante->marital_status],
+                'PerFUM' => date_format($date, 'Ymd H:i:s'),
+                'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
+            ]);
         }
 
-        return redirect()->back()->with('success', 'Datos Migrados Correctamente!');
-    }
+        if (count($value->members) > 0) {
+            foreach ($value->members as $member) {
+                $miembro = BAMPER::where('PerCod', $member->miembros->cedula)->first();
+                if (!$miembro) {
+                    $nombremiembro = utf8_encode($member->miembros->last_name . ' ' . $member->miembros->first_name);
+                    $nac = new \DateTime($member->miembros->birthdate);
+                    $apepri = strtok($member->miembros->last_name,  ' ');
+                    $nompri = strtok($member->miembros->first_name,  ' ');
 
-    public function migracionshd($projectHasExpediente, Request $request)
-    {
+                    $nomseg = str_contains($member->miembros->first_name, ' ') ? substr($member->miembros->first_name, strpos($member->miembros->first_name, " ") + 1) : "";
+                    $apeseg = str_contains($member->miembros->last_name, ' ') ? substr($member->miembros->last_name, strpos($member->miembros->last_name, " ") + 1) : "";
 
-        $reg = POSSVS::where('PsvCod', $request->id)->first();
-        $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
-        $date = new \DateTime();
-        $email = Auth::user()->email;
-        //return strstr($email, '@', true);
-        if ($reg) {
-            # code...
-            $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
-            //return $reg;
-
-            foreach ($postulantes as $key => $value) {
-                $user = POSSVS1::where('PsvCedTit',  $value->postulante->cedula)
-                    ->where('PsvCod', $request->id)
-                    ->first();
-                $nombre = $value->postulante->last_name . ', ' . $value->postulante->first_name;
-                $mesa = SIG005L1::where('ExpDPerCod',  $value->postulante->cedula)
-                    ->where('NroExp', $exp->exp)
-                    ->first();
-                if (is_null($value->conyuge)) {
-                    $solpercge = "";
-                    $conyuname = "";
-                    $ingconyuge = 0;
-                    $c = null;
-                } else {
-                    $solpercge = $value->conyuge->miembros->cedula;
-                    $conyuname = $value->conyuge->miembros->last_name . ", " . $value->conyuge->miembros->first_name;
-                    $ingconyuge = $value->conyuge->miembros->ingreso;
-                    $con = new \DateTime($value->conyuge->miembros->birthdate);
-                    $c = date_format($con, 'Ymd');
-                }
-
-                if ($value->postulante->discapacidad->discapacidad_id == 1) {
-                    $dis = 'N';
-                } else {
-                    $dis = 'S';
-                }
-
-                $nac = new \DateTime($value->postulante->birthdate);
-                $f = date_format($nac, 'Ymd');
-
-
-                if (!$user) {
-
-                    $reg = POSSVS1::create([
-                        'PsvCod' => $request->id,
-                        'Psvord' => $key + 1,
-                        'PsvBibNro' => 0,
-                        'PsvExpNro' => $mesa->ExpDNro,
-                        'PsvExpS' => 'A',
-                        'PsvTDPos' => 'C',
-                        'PsvTDPosM' => '',
-                        'PsvCedTit' => $value->postulante->cedula,
-                        'PsvNomTit' => mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8'),
-                        'PsvTDCge' => 'C',
-                        'PsvTDCgeM' => '',
-                        'PsvCedCge' => $solpercge,
-                        'PsvNomCge' => mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8'),
-                        'PsvNivel' => 4,
-                        'PsvCanHij' => $value->childrens_count,
-                        'PsvDiscap' => $dis,
-                        'PsvTerEdad' => 'N',
-                        'PsvSosten' => 'N',
-                        'PsvAporte' => 0, //$value->postulante->ingreso,
-                        'PsvIfac' => '',
-                        'PsvDomi' => mb_convert_encoding(substr($value->postulante->address, 0, 60), 'Windows-1252', 'UTF-8'),
-                        'PsvObs' => '',
-                        'PsvRegCon' => 'S',
-                        'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                        'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
-                        'PsvIngTit' => $value->postulante->ingreso,
-                        'PsvIngCge' => $ingconyuge,
-                        'PsvIngOtr' => 0,
-                        'PsvIngFam' => $value->postulante->ingreso + $ingconyuge,
-                        'PsvNomSos' => '',
-                        'PsvCgeFNac' => $c,
-                        'PsvTitFNac' => $f
-
+                    $reg = BAMPER::create([
+                        'PerCod' => $member->miembros->cedula,
+                        'PerNom' => utf8_encode($nombremiembro),
+                        'PerApePri' => utf8_encode($apepri),
+                        'PerNomPri' => utf8_encode($nompri),
+                        'PerApeSeg' => utf8_encode($apeseg),
+                        'PerNomSeg' => utf8_encode($nomseg),
+                        'PerEstCiv' => $estciv[$member->miembros->marital_status],
+                        'PerDomic' => utf8_encode(substr($member->miembros->address, 0, 60)),
+                        'PerTel1' => $member->miembros->phone,
+                        'PerTel2' => $member->miembros->mobile,
+                        'PerTpDoc' => 'CID',
+                        'ProCod' => 58,
+                        'PerFchNac' => date_format($nac, 'Ymd'),
+                        'PerSexo' => $member->miembros->gender,
+                        'ActCod' => 7,
+                        'PerNac' => 1,
+                        'DptoId' => 11,
+                        'CiuId' => 179,
+                        'PerRelPar' => $relpar[$member->miembros->marital_status],
+                        'PerFUM' => date_format($date, 'Ymd H:i:s'),
+                        'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
                     ]);
                 }
             }
-
-            return redirect()->back()->with('success', 'Datos Migrados Correctamente!');
-        } else {
-            return redirect()->back()->with('error', 'No se encontro planilla SHD!');
         }
-
-        //return $request->id;
     }
 
-    public function migracionsolicitantes($projectHasExpediente)
+    return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR PERSONAS)');
+}
+
+
+
+
+
+
+public function migracionsolicitantes($projectHasExpediente)
     {
 
         //return "migracio solicitantes";
@@ -384,7 +271,7 @@ class ProjectHasExpedientesController extends Controller
             $expfec =
                 $nac = new \DateTime($mesa->ExpDFec);
             if (is_null($value->conyuge)) {
-                $solpercge = "";
+                  $solpercge = "";
             } else {
                 $solpercge = $value->conyuge->miembros->cedula;
             }
@@ -416,7 +303,6 @@ class ProjectHasExpedientesController extends Controller
 
                 ]);
             }
-
             $pos = BAMPER::where('PerCod', $value->postulante->cedula)->first();
             $posivms = IVMSOL2::where('GfsCod', $value->postulante->cedula)->first();
             //return $pos;
@@ -430,6 +316,7 @@ class ProjectHasExpedientesController extends Controller
             }
 
             if (!$posivms) {
+
                 $reg = IVMSOL2::create([
                     'SolPerCod' => $value->postulante->cedula,
                     'GfsCod' => $value->postulante->cedula,
@@ -439,7 +326,8 @@ class ProjectHasExpedientesController extends Controller
                     'GfsImpSue' => $value->postulante->ingreso,
                     'GfsImpApo' => 0,
                     'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                    'GfsFecAlta' => date_format($date, 'Ymd H:i:s')
+                    'GfsFecAlta' => date_format($date, 'Ymd H:i:s'),
+                    'GfsPEC' => 'N'
 
                 ]);
             }
@@ -470,7 +358,8 @@ class ProjectHasExpedientesController extends Controller
                             'GfsImpSue' => $member->miembros->ingreso,
                             'GfsImpApo' => 0,
                             'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                            'GfsFecAlta' => date_format($date, 'Ymd H:i:s')
+                            'GfsFecAlta' => date_format($date, 'Ymd H:i:s'),
+                            'GfsPEC' => 'N'
 
                         ]);
                     }
@@ -478,8 +367,129 @@ class ProjectHasExpedientesController extends Controller
             }
         }
 
-        return redirect()->back()->with('success', 'Datos Migrados Correctamente!');
+        return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR SOLICITANTES)');
     }
+
+
+
+public function migracionshd($projectHasExpediente, Request $request)
+{
+    // return $projectHasExpediente;
+    try {
+        $Nomproy=Project::where('id', $projectHasExpediente)->first();// para obtener nombre del proyecto y SAT
+        $tipoterreno=Land::where('id', $Nomproy->land_id)->first(); //  obtener tipo de terreno
+        $reg = POSSVS::where('PsvCod', $request->id)->first();
+        $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
+        $date = new \DateTime();
+        $email = Auth::user()->email;
+
+        if ($reg) {
+            POSSVS::where('PsvCod', $reg->PsvCod)->update([
+                'PsvModDes' => trim($Nomproy->name),
+                'NucCod' => trim($Nomproy->sat_id),
+                'DptoId' => $Nomproy->state_id,
+                'CiuId' => $Nomproy->city_id
+            ]);
+
+            $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+
+            foreach ($postulantes as $key => $value) {
+                try {
+                    Log::info("Procesando postulante ID {$value->id}");
+
+                    $user = POSSVS1::where('PsvCedTit', $value->postulante->cedula)
+                        ->where('PsvCod', $request->id)
+                        ->first();
+
+                    $nombre = $value->postulante->last_name . ', ' . $value->postulante->first_name;
+
+                    $mesa = SIG005L1::where('ExpDPerCod', $value->postulante->cedula)
+                        ->where('NroExp', $exp->exp ?? null)
+                        ->first();
+
+                    if (!$mesa) {
+                        Log::warning("No se encontró 'mesa' para {$value->postulante->cedula}");
+                        continue;
+                    }
+
+                    // Cónyuge
+                    if (is_null($value->conyuge)) {
+                        $solpercge = "";
+                        $conyuname = "";
+                        $ingconyuge = 0;
+                        $c = null;
+                    } else {
+                        $solpercge = $value->conyuge->miembros->cedula ?? "";
+                        $conyuname = ($value->conyuge->miembros->last_name ?? "") . ", " . ($value->conyuge->miembros->first_name ?? "");
+                        $ingconyuge = $value->conyuge->miembros->ingreso ?? 0;
+                        $con = $value->conyuge->miembros->birthdate ?? null;
+                        $c = $con ? date_format(new \DateTime($con), 'Ymd') : null;
+                    }
+
+                    $discapacidad_id = optional($value->postulante->discapacidad)->discapacidad_id ?? 1;
+                    $dis = $discapacidad_id == 1 ? 'N' : 'S';
+
+                    $nac = $value->postulante->birthdate ?? null;
+                    $f = $nac ? date_format(new \DateTime($nac), 'Ymd') : null;
+
+                    $direccion = substr($value->postulante->address ?? '', 0, 60);
+                    if (!$user) {
+                        POSSVS1::create([
+                            'PsvCod' => $request->id,
+                            'Psvord' => $key + 1,
+                            'PsvBibNro' => 0,
+                            'PsvExpNro' => $mesa->ExpDNro,
+                            'PsvExpS' => 'A',
+                            'PsvTDPos' => 'C',
+                            'PsvTDPosM' => '',
+                            'PsvCedTit' => $value->postulante->cedula,
+                            'PsvNomTit' => mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8'),
+                            'PsvTDCge' => 'C',
+                            'PsvTDCgeM' => '',
+                            'PsvCedCge' => $solpercge,
+                            'PsvNomCge' => mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8'),
+                            'PsvNivel' => 4,
+                            'PsvCanHij' => $value->childrens_count ?? 0,
+                            'PsvDiscap' => $dis,
+                            'PsvTerEdad' => 'N',
+                            'PsvSosten' => 'N',
+                            'PsvAporte' => 0,
+                            'PsvIfac' => '',
+                            'PsvDomi' => mb_convert_encoding($direccion, 'UTF-8'),
+                            'PsvObs' => '',
+                            'PsvRegCon' => 'S',
+                            'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
+                            'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
+                            'PsvIngTit' => $value->postulante->ingreso ?? 0,
+                            'PsvIngCge' => $ingconyuge,
+                            'PsvIngOtr' => 0,
+                            'PsvIngFam' => ($value->postulante->ingreso ?? 0) + $ingconyuge,
+                            'PsvNomSos' => '',
+                            'PsvCgeFNac' => $c,
+                            'PsvTitFNac' => $f,
+                            'PsvTerreno' => $tipoterreno->name
+                        ]);
+
+                        Log::info("Insertado exitosamente: {$value->postulante->cedula}");
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Error al procesar postulante {$value->id}: " . $e->getMessage());
+                }
+            }
+
+            return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR SHD)');
+        } else {
+            return redirect()->back()->with('error', 'No se encontró planilla SHD!');
+        }
+
+    } catch (\Exception $e) {
+        Log::error("Error general en migración: " . $e->getMessage());
+        return redirect()->back()->with('error', 'Ocurrió un error al migrar los datos.');
+    }
+}
+
+
+
 
 
 
