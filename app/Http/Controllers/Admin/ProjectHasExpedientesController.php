@@ -387,8 +387,8 @@ public function migracionshd($projectHasExpediente, Request $request)
             POSSVS::where('PsvCod', $reg->PsvCod)->update([
                 'PsvModDes' => trim($Nomproy->name),
                 'NucCod' => trim($Nomproy->sat_id),
-                'DptoId' => $Nomproy->state_id,
-                'CiuId' => $Nomproy->city_id
+                'PsvDptoId' => $Nomproy->state_id,
+                'PsvCiudId' => $Nomproy->city_id
             ]);
 
             $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
@@ -443,11 +443,11 @@ public function migracionshd($projectHasExpediente, Request $request)
                             'PsvTDPos' => 'C',
                             'PsvTDPosM' => '',
                             'PsvCedTit' => $value->postulante->cedula,
-                            'PsvNomTit' => mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8'),
+                            'PsvNomTit' => trim(mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8')),
                             'PsvTDCge' => 'C',
                             'PsvTDCgeM' => '',
                             'PsvCedCge' => $solpercge,
-                            'PsvNomCge' => mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8'),
+                            'PsvNomCge' => trim(mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8')),
                             'PsvNivel' => 4,
                             'PsvCanHij' => $value->childrens_count ?? 0,
                             'PsvDiscap' => $dis,
@@ -455,7 +455,7 @@ public function migracionshd($projectHasExpediente, Request $request)
                             'PsvSosten' => 'N',
                             'PsvAporte' => 0,
                             'PsvIfac' => '',
-                            'PsvDomi' => mb_convert_encoding($direccion, 'UTF-8'),
+                            'PsvDomi' => trim($direccion),
                             'PsvObs' => '',
                             'PsvRegCon' => 'S',
                             'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
@@ -467,13 +467,13 @@ public function migracionshd($projectHasExpediente, Request $request)
                             'PsvNomSos' => '',
                             'PsvCgeFNac' => $c,
                             'PsvTitFNac' => $f,
-                            'PsvTerreno' => $tipoterreno->name
+                            'PsvTerreno' => trim($tipoterreno->name)
                         ]);
 
                         Log::info("Insertado exitosamente: {$value->postulante->cedula}");
                     }
                 } catch (\Exception $e) {
-                    Log::error("Error al procesar postulante {$value->id}: " . $e->getMessage());
+                    // Log::error("Error al procesar postulante {$value->id}: " . $e->getMessage());
                 }
             }
 
