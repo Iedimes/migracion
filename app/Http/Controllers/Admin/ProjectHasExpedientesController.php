@@ -116,7 +116,10 @@ class ProjectHasExpedientesController extends Controller
     {
         $this->authorize('admin.project-has-expediente.show', $projectHasExpediente);
 
-        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente->project_id)->get();
+        // $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente->project_id)->get();
+        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente->project_id)
+                        ->whereNull('deleted_at')
+                        ->get();
         //return $postulantes;
         // TODO your code goes here
         return view('admin.project-has-expediente.show', compact('projectHasExpediente', 'postulantes'));
@@ -242,7 +245,10 @@ public function migracionsolicitantes($projectHasExpediente)
     {
 
         //return "migracio solicitantes";
-        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)
+                        ->whereNull('deleted_at')
+                        ->get();
+        // return $contar=count($postulantes);
         //return $postulantes;
         $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
         //return $exp->project_id;
@@ -265,9 +271,11 @@ public function migracionsolicitantes($projectHasExpediente)
         foreach ($postulantes as $key => $value) {
 
             $user = IVMSOL::where('SolPerCod',  $value->postulante->cedula)->first();
+            // dd($value->postulante->cedula);
             $mesa = SIG005L1::where('ExpDPerCod',  $value->postulante->cedula)
                 ->where('NroExp', $exp->exp)
                 ->first();
+                // dd($mesa);
             $expfec =
                 $nac = new \DateTime($mesa->ExpDFec);
             if (is_null($value->conyuge)) {
@@ -309,11 +317,16 @@ public function migracionsolicitantes($projectHasExpediente)
             $datecalc = new \DateTime($pos->PerFchNac);
             $now = new \DateTime($mesa->ExpDFec);
             $interval = $now->diff($datecalc);
-            if ($value->postulante->discapacidad->discapacidad_id == 1) {
-                $dis = 'N';
-            } else {
+            if (
+                !isset($value->postulante->discapacidad) ||
+                $value->postulante->discapacidad->discapacidad_id == null ||
+                $value->postulante->discapacidad->discapacidad_id == ''
+            ) {
                 $dis = 'S';
+            } else {
+                $dis = 'N';
             }
+
 
             if (!$posivms) {
 
@@ -344,11 +357,18 @@ public function migracionsolicitantes($projectHasExpediente)
                         $datecalmember = new \DateTime($pos->PerFchNac);
                         $now = new \DateTime($mesa->ExpDFec);
                         $interval = $now->diff($datecalmember);
-                        if ($member->miembros->discapacidad->discapacidad_id == 1) {
+                        if (
+                            !isset($member->miembros->discapacidad) ||
+                            $member->miembros->discapacidad->discapacidad_id == null ||
+                            $member->miembros->discapacidad->discapacidad_id === ''
+                        ) {
+                            $dis = 'S';
+                        } elseif ($member->miembros->discapacidad->discapacidad_id == 1) {
                             $dis = 'N';
                         } else {
                             $dis = 'S';
                         }
+
                         $reg = IVMSOL2::create([
                             'SolPerCod' => $value->postulante->cedula,
                             'GfsCod' => $member->miembros->cedula,
@@ -372,121 +392,132 @@ public function migracionsolicitantes($projectHasExpediente)
 
 
 
-public function migracionshd($projectHasExpediente, Request $request)
-{
-    // return $projectHasExpediente;
-    try {
-        $Nomproy=Project::where('id', $projectHasExpediente)->first();// para obtener nombre del proyecto y SAT
-        $tipoterreno=Land::where('id', $Nomproy->land_id)->first(); //  obtener tipo de terreno
-        $reg = POSSVS::where('PsvCod', $request->id)->first();
-        $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
-        $date = new \DateTime();
-        $email = Auth::user()->email;
+    public function migracionshd($projectHasExpediente, Request $request)
+    {
+        try {
+            $Nomproy = Project::where('id', $projectHasExpediente)->first(); // nombre del proyecto y SAT
+            $tipoterreno = Land::where('id', $Nomproy->land_id)->first(); // tipo de terreno
+            $reg = POSSVS::where('PsvCod', $request->id)->first();
+            $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
+            $date = new \DateTime();
+            $email = Auth::user()->email;
 
-        if ($reg) {
-            POSSVS::where('PsvCod', $reg->PsvCod)->update([
-                'PsvModDes' => trim($Nomproy->name),
-                'NucCod' => trim($Nomproy->sat_id),
-                'PsvDptoId' => $Nomproy->state_id,
-                'PsvCiudId' => $Nomproy->city_id
-            ]);
+            if ($reg) {
+                POSSVS::where('PsvCod', $reg->PsvCod)->update([
+                    'PsvModDes' => trim($Nomproy->name),
+                    'NucCod' => trim($Nomproy->sat_id),
+                    'PsvDptoId' => $Nomproy->state_id,
+                    'PsvCiudId' => $Nomproy->city_id
+                ]);
 
-            $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+                $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
 
-            foreach ($postulantes as $key => $value) {
-                try {
-                    Log::info("Procesando postulante ID {$value->id}");
+                foreach ($postulantes as $key => $value) {
+                    try {
+                        Log::info("Procesando postulante ID {$value->id}");
 
-                    $user = POSSVS1::where('PsvCedTit', $value->postulante->cedula)
-                        ->where('PsvCod', $request->id)
-                        ->first();
+                        $user = POSSVS1::where('PsvCedTit', $value->postulante->cedula)
+                            ->where('PsvCod', $request->id)
+                            ->first();
 
-                    $nombre = $value->postulante->last_name . ', ' . $value->postulante->first_name;
+                        $nombre = $value->postulante->last_name . ', ' . $value->postulante->first_name;
 
-                    $mesa = SIG005L1::where('ExpDPerCod', $value->postulante->cedula)
-                        ->where('NroExp', $exp->exp ?? null)
-                        ->first();
+                        $mesa = SIG005L1::where('ExpDPerCod', $value->postulante->cedula)
+                            ->where('NroExp', $exp->exp ?? null)
+                            ->first();
 
-                    if (!$mesa) {
-                        Log::warning("No se encontró 'mesa' para {$value->postulante->cedula}");
-                        continue;
-                    }
+                        if (!$mesa) {
+                            Log::warning("No se encontró 'mesa' para {$value->postulante->cedula}");
+                            continue;
+                        }
 
-                    // Cónyuge
-                    if (is_null($value->conyuge)) {
-                        $solpercge = "";
-                        $conyuname = "";
-                        $ingconyuge = 0;
-                        $c = null;
-                    } else {
-                        $solpercge = $value->conyuge->miembros->cedula ?? "";
-                        $conyuname = ($value->conyuge->miembros->last_name ?? "") . ", " . ($value->conyuge->miembros->first_name ?? "");
-                        $ingconyuge = $value->conyuge->miembros->ingreso ?? 0;
-                        $con = $value->conyuge->miembros->birthdate ?? null;
-                        $c = $con ? date_format(new \DateTime($con), 'Ymd') : null;
-                    }
+                        // Cónyuge
+                        if (is_null($value->conyuge)) {
+                            $solpercge = "";
+                            $conyuname = "";
+                            $ingconyuge = 0;
+                            $c = null;
+                        } else {
+                            $solpercge = $value->conyuge->miembros->cedula ?? "";
+                            $conyuname = ($value->conyuge->miembros->last_name ?? "") . ", " . ($value->conyuge->miembros->first_name ?? "");
+                            $ingconyuge = $value->conyuge->miembros->ingreso ?? 0;
+                            $con = $value->conyuge->miembros->birthdate ?? null;
+                            $c = $con ? date_format(new \DateTime($con), 'Ymd') : null;
+                        }
 
-                    $discapacidad_id = optional($value->postulante->discapacidad)->discapacidad_id ?? 1;
-                    $dis = $discapacidad_id == 1 ? 'N' : 'S';
+                        $discapacidad_id = optional($value->postulante->discapacidad)->discapacidad_id ?? 1;
+                        $dis = $discapacidad_id == 1 ? 'N' : 'S';
 
-                    $nac = $value->postulante->birthdate ?? null;
-                    $f = $nac ? date_format(new \DateTime($nac), 'Ymd') : null;
+                        $nac = $value->postulante->birthdate ?? null;
+                        $f = $nac ? date_format(new \DateTime($nac), 'Ymd') : null;
 
-                    $direccion = substr($value->postulante->address ?? '', 0, 60);
-                    if (!$user) {
-                        POSSVS1::create([
-                            'PsvCod' => $request->id,
-                            'Psvord' => $key + 1,
-                            'PsvBibNro' => 0,
-                            'PsvExpNro' => $mesa->ExpDNro,
-                            'PsvExpS' => 'A',
-                            'PsvTDPos' => 'C',
-                            'PsvTDPosM' => '',
-                            'PsvCedTit' => $value->postulante->cedula,
-                            'PsvNomTit' => trim(mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8')),
-                            'PsvTDCge' => 'C',
-                            'PsvTDCgeM' => '',
-                            'PsvCedCge' => $solpercge,
-                            'PsvNomCge' => trim(mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8')),
-                            'PsvNivel' => 4,
-                            'PsvCanHij' => $value->childrens_count ?? 0,
-                            'PsvDiscap' => $dis,
-                            'PsvTerEdad' => 'N',
-                            'PsvSosten' => 'N',
-                            'PsvAporte' => 0,
-                            'PsvIfac' => '',
-                            'PsvDomi' => trim($direccion),
-                            'PsvObs' => '',
-                            'PsvRegCon' => 'S',
-                            'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                            'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
-                            'PsvIngTit' => $value->postulante->ingreso ?? 0,
-                            'PsvIngCge' => $ingconyuge,
-                            'PsvIngOtr' => 0,
-                            'PsvIngFam' => ($value->postulante->ingreso ?? 0) + $ingconyuge,
-                            'PsvNomSos' => '',
-                            'PsvCgeFNac' => $c,
-                            'PsvTitFNac' => $f,
-                            'PsvTerreno' => trim($tipoterreno->name)
+                        $direccion = substr($value->postulante->address ?? '', 0, 60);
+
+                        if (!$user) {
+                            $data = [
+                                'PsvCod' => $request->id,
+                                'Psvord' => $key + 1,
+                                'PsvBibNro' => 0,
+                                'PsvExpNro' => $mesa->ExpDNro,
+                                'PsvExpS' => 'A',
+                                'PsvTDPos' => 'C',
+                                'PsvTDPosM' => '',
+                                'PsvCedTit' => $value->postulante->cedula,
+                                // 'PsvNomTit' => trim(mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8')),
+                                'PsvNomTit' => trim($nombre),
+                                'PsvTDCge' => 'C',
+                                'PsvTDCgeM' => '',
+                                'PsvCedCge' => $solpercge,
+                                // 'PsvNomCge' => trim(mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8')),
+                                'PsvNomTit' => trim($nombre),
+                                'PsvNivel' => 4,
+                                'PsvCanHij' => $value->childrens_count ?? 0,
+                                'PsvDiscap' => $dis,
+                                'PsvTerEdad' => 'N',
+                                'PsvSosten' => 'N',
+                                'PsvAporte' => 0,
+                                'PsvIfac' => '',
+                                'PsvDomi' => trim($direccion),
+                                'PsvObs' => '',
+                                'PsvRegCon' => 'S',
+                                'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
+                                'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
+                                'PsvIngTit' => $value->postulante->ingreso ?? 0,
+                                'PsvIngCge' => $ingconyuge,
+                                'PsvIngOtr' => 0,
+                                'PsvIngFam' => ($value->postulante->ingreso ?? 0) + $ingconyuge,
+                                'PsvNomSos' => '',
+                                'PsvCgeFNac' => $c,
+                                'PsvTitFNac' => $f,
+                                'PsvTerreno' => trim($tipoterreno->name)
+                            ];
+
+                            Log::debug("Datos a insertar para cedula {$value->postulante->cedula}:", $data);
+
+                            POSSVS1::create($data);
+
+                            Log::info("Insertado exitosamente: {$value->postulante->cedula}");
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Error al procesar postulante {$value->id}: " . $e->getMessage(), [
+                            'trace' => $e->getTraceAsString()
                         ]);
-
-                        Log::info("Insertado exitosamente: {$value->postulante->cedula}");
                     }
-                } catch (\Exception $e) {
-                    // Log::error("Error al procesar postulante {$value->id}: " . $e->getMessage());
                 }
+
+                return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR SHD)');
+            } else {
+                return redirect()->back()->with('error', 'No se encontró planilla SHD!');
             }
 
-            return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR SHD)');
-        } else {
-            return redirect()->back()->with('error', 'No se encontró planilla SHD!');
+        } catch (\Exception $e) {
+            Log::error("Error general en migración: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return redirect()->back()->with('error', 'Ocurrió un error al migrar los datos.');
         }
-
-    } catch (\Exception $e) {
-        Log::error("Error general en migración: " . $e->getMessage());
-        return redirect()->back()->with('error', 'Ocurrió un error al migrar los datos.');
     }
-}
+
 
 
 

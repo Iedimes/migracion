@@ -20,18 +20,14 @@ class Project extends Model
         'action',
         'expsocial',
         'exptecnico',
-
     ];
-
 
     protected $dates = [
         'created_at',
         'updated_at',
-
     ];
 
     protected $appends = ['resource_url'];
-    //protected $with = ['postulantes'];
     protected $withCount = ['postulantes'];
 
     /* ************************ ACCESSOR ************************* */
@@ -43,7 +39,7 @@ class Project extends Model
 
     public function postulantes()
     {
-        return $this->hasMany(ProjectHasPostulante::class);
+        return $this->hasMany(ProjectHasPostulante::class)->whereNull('deleted_at');
     }
 
     public function totalpostulantes()
