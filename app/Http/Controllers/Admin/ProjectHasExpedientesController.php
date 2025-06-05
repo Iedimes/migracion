@@ -469,7 +469,7 @@ public function migracionsolicitantes($projectHasExpediente)
                                 'PsvTDCgeM' => '',
                                 'PsvCedCge' => $solpercge,
                                 // 'PsvNomCge' => trim(mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8')),
-                                'PsvNomTit' => trim($nombre),
+                                'PsvNomCge' => trim($conyuname),
                                 'PsvNivel' => 4,
                                 'PsvCanHij' => $value->childrens_count ?? 0,
                                 'PsvDiscap' => $dis,
