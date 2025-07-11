@@ -134,107 +134,134 @@ class ProjectHasExpedientesController extends Controller
     }
 
     public function migracionpersonas($projectHasExpediente)
-{
-    $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
-    $date = new \DateTime();
-    $estciv = array(
-        'SO' => 1,
-        'CA' => 2,
-        'VI' => 6,
-        'ME' => 1,
-    );
-
-    $relpar = array(
-        'SO' => 1,
-        'CA' => 2,
-        'VI' => 1,
-        'ME' => 1,
-    );
-
-    foreach ($postulantes as $key => $value) {
-        $user = BAMPER::where('PerCod',  $value->postulante->cedula)->first();
+    {
+        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+        $date = new \DateTime();
         $email = Auth::user()->email;
 
-        // Convertir nombre completo y apellidos a UTF-8
-        $nombre = utf8_encode($value->postulante->last_name . ' ' . $value->postulante->first_name);
-        $nac = new \DateTime($value->postulante->birthdate);
-        $f = date_format($nac, 'Ymd');
+        // Extraer y preparar el username una sola vez
+        $username = strstr($email, '@', true);
+        $perUser = strtoupper(substr($username, 0, 8)) . '-M';
 
-        // Segundo nombre y apellido (si existen)
-        $nomsegpos = str_contains($value->postulante->first_name, ' ') ? substr($value->postulante->first_name, strpos($value->postulante->first_name, " ") + 1) : "";
-        $apesegpos = str_contains($value->postulante->last_name, ' ') ? substr($value->postulante->last_name, strpos($value->postulante->last_name, " ") + 1) : "";
+        $estciv = [
+            'SO' => 1, // Soltero/a
+            'CA' => 2, // Casado/a
+            'SE' => 3, // Separado/a
+            'DI' => 4, // Divorciado/a
+            'VI' => 6, // Viudo/a
+            'ME' => 7, // Menor
+        ];
 
-        $apepripos = strtok($value->postulante->last_name,  ' ');
-        $nompripos = strtok($value->postulante->first_name,  ' ');
+        $relpar = [
+            'SO' => 1, // Soltero/a
+            'CA' => 2, // Casado/a
+            'SE' => 3, // Separado/a
+            'DI' => 4, // Divorciado/a
+            'VI' => 6, // Viudo/a
+            'ME' => 7, // Menor
+        ];
 
-        if (!$user) {
-            $reg = BAMPER::create([
-                'PerCod' => $value->postulante->cedula,
-                'PerNom' => utf8_encode($nombre),
-                'PerApePri' => utf8_encode($apepripos),
-                'PerNomPri' => utf8_encode($nompripos),
-                'PerApeSeg' => utf8_encode($apesegpos),
-                'PerNomSeg' => utf8_encode($nomsegpos),
-                'PerDomic' => utf8_encode(substr($value->postulante->address, 0, 60)),
-                'PerTel1' => $value->postulante->phone,
-                'PerTel2' => $value->postulante->mobile,
-                'PerEstCiv' => $estciv[$value->postulante->marital_status],
-                'PerTpDoc' => 'CID',
-                'PerFchNac' => $f,
-                'PerSexo' => $value->postulante->gender,
-                'ProCod' => 58,
-                'ActCod' => 7,
-                'PerNac' => 1,
-                'DptoId' => 11,
-                'CiuId' => 179,
-                'PerRelPar' => $relpar[$value->postulante->marital_status],
-                'PerFUM' => date_format($date, 'Ymd H:i:s'),
-                'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
-            ]);
-        }
+        foreach ($postulantes as $key => $value) {
+            $user = BAMPER::where('PerCod', $value->postulante->cedula)->first();
 
-        if (count($value->members) > 0) {
-            foreach ($value->members as $member) {
-                $miembro = BAMPER::where('PerCod', $member->miembros->cedula)->first();
-                if (!$miembro) {
-                    $nombremiembro = utf8_encode($member->miembros->last_name . ' ' . $member->miembros->first_name);
-                    $nac = new \DateTime($member->miembros->birthdate);
-                    $apepri = strtok($member->miembros->last_name,  ' ');
-                    $nompri = strtok($member->miembros->first_name,  ' ');
+            if (!$user) {
+                $nombre = $value->postulante->last_name . ' ' . $value->postulante->first_name;
+                $nac = new \DateTime($value->postulante->birthdate);
+                $f = date_format($nac, 'Ymd');
 
-                    $nomseg = str_contains($member->miembros->first_name, ' ') ? substr($member->miembros->first_name, strpos($member->miembros->first_name, " ") + 1) : "";
-                    $apeseg = str_contains($member->miembros->last_name, ' ') ? substr($member->miembros->last_name, strpos($member->miembros->last_name, " ") + 1) : "";
+                // Segundo nombre y apellido (si existen)
+                $nomsegpos = str_contains($value->postulante->first_name, ' ') ?
+                    substr($value->postulante->first_name, strpos($value->postulante->first_name, " ") + 1) : "";
+                $apesegpos = str_contains($value->postulante->last_name, ' ') ?
+                    substr($value->postulante->last_name, strpos($value->postulante->last_name, " ") + 1) : "";
 
-                    $reg = BAMPER::create([
-                        'PerCod' => $member->miembros->cedula,
-                        'PerNom' => utf8_encode($nombremiembro),
-                        'PerApePri' => utf8_encode($apepri),
-                        'PerNomPri' => utf8_encode($nompri),
-                        'PerApeSeg' => utf8_encode($apeseg),
-                        'PerNomSeg' => utf8_encode($nomseg),
-                        'PerEstCiv' => $estciv[$member->miembros->marital_status],
-                        'PerDomic' => utf8_encode(substr($member->miembros->address, 0, 60)),
-                        'PerTel1' => $member->miembros->phone,
-                        'PerTel2' => $member->miembros->mobile,
-                        'PerTpDoc' => 'CID',
-                        'ProCod' => 58,
-                        'PerFchNac' => date_format($nac, 'Ymd'),
-                        'PerSexo' => $member->miembros->gender,
-                        'ActCod' => 7,
-                        'PerNac' => 1,
-                        'DptoId' => 11,
-                        'CiuId' => 179,
-                        'PerRelPar' => $relpar[$member->miembros->marital_status],
-                        'PerFUM' => date_format($date, 'Ymd H:i:s'),
-                        'PerUser' => strtoupper(substr(strstr($email, '@', true), 0, 10))
-                    ]);
+                $apepripos = strtok($value->postulante->last_name, ' ');
+                $nompripos = strtok($value->postulante->first_name, ' ');
+
+                // Validar que existe el estado civil en el array
+                $maritalStatus = $value->postulante->marital_status;
+                if (!isset($estciv[$maritalStatus])) {
+                    \Log::warning("Estado civil no encontrado: {$maritalStatus} para cédula: {$value->postulante->cedula}");
+                    continue; // Saltar este registro o asignar un valor por defecto
+                }
+
+                $reg = BAMPER::create([
+                    'PerCod' => $value->postulante->cedula,
+                    'PerNom' => $nombre,
+                    'PerApePri' => $apepripos,
+                    'PerNomPri' => $nompripos,
+                    'PerApeSeg' => $apesegpos,
+                    'PerNomSeg' => $nomsegpos,
+                    'PerDomic' => substr($value->postulante->address ?? '', 0, 60),
+                    'PerTel1' => $value->postulante->phone,
+                    'PerTel2' => $value->postulante->mobile,
+                    'PerEstCiv' => $estciv[$maritalStatus],
+                    'PerTpDoc' => 'CID',
+                    'PerFchNac' => $f,
+                    'PerSexo' => $value->postulante->gender,
+                    'ProCod' => 58,
+                    'ActCod' => 7,
+                    'PerNac' => 1,
+                    'DptoId' => 11,
+                    'CiuId' => 179,
+                    'PerRelPar' => $relpar[$maritalStatus],
+                    'PerFUM' => date_format($date, 'Ymd H:i:s'),
+                    'PerUser' => $perUser
+                ]);
+            }
+
+            // Procesar miembros
+            if (count($value->members) > 0) {
+                foreach ($value->members as $member) {
+                    $miembro = BAMPER::where('PerCod', $member->miembros->cedula)->first();
+                    if (!$miembro) {
+                        $nombremiembro = $member->miembros->last_name . ' ' . $member->miembros->first_name;
+                        $nac = new \DateTime($member->miembros->birthdate);
+                        $apepri = strtok($member->miembros->last_name, ' ');
+                        $nompri = strtok($member->miembros->first_name, ' ');
+
+                        $nomseg = str_contains($member->miembros->first_name, ' ') ?
+                            substr($member->miembros->first_name, strpos($member->miembros->first_name, " ") + 1) : "";
+                        $apeseg = str_contains($member->miembros->last_name, ' ') ?
+                            substr($member->miembros->last_name, strpos($member->miembros->last_name, " ") + 1) : "";
+
+                        // Validar estado civil del miembro
+                        $memberMaritalStatus = $member->miembros->marital_status;
+                        if (!isset($estciv[$memberMaritalStatus])) {
+                            \Log::warning("Estado civil no encontrado: {$memberMaritalStatus} para cédula: {$member->miembros->cedula}");
+                            continue;
+                        }
+
+                        $reg = BAMPER::create([
+                            'PerCod' => $member->miembros->cedula,
+                            'PerNom' => $nombremiembro,
+                            'PerApePri' => $apepri,
+                            'PerNomPri' => $nompri,
+                            'PerApeSeg' => $apeseg,
+                            'PerNomSeg' => $nomseg,
+                            'PerEstCiv' => $estciv[$memberMaritalStatus],
+                            'PerDomic' => substr($member->miembros->address ?? '', 0, 60),
+                            'PerTel1' => $member->miembros->phone,
+                            'PerTel2' => $member->miembros->mobile,
+                            'PerTpDoc' => 'CID',
+                            'ProCod' => 58,
+                            'PerFchNac' => date_format($nac, 'Ymd'),
+                            'PerSexo' => $member->miembros->gender,
+                            'ActCod' => 7,
+                            'PerNac' => 1,
+                            'DptoId' => 11,
+                            'CiuId' => 179,
+                            'PerRelPar' => $relpar[$memberMaritalStatus],
+                            'PerFUM' => date_format($date, 'Ymd H:i:s'),
+                            'PerUser' => $perUser
+                        ]);
+                    }
                 }
             }
         }
-    }
 
-    return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR PERSONAS)');
-}
+        return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR PERSONAS)');
+    }
 
 
 
