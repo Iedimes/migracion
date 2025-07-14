@@ -133,7 +133,7 @@ class ProjectHasExpedientesController extends Controller
         return view('admin.project-has-expediente.migracion', compact('project'));
     }
 
-    public function migracionpersonas($projectHasExpediente)
+public function migracionpersonas($projectHasExpediente)
     {
         $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
         $date = new \DateTime();
@@ -143,124 +143,182 @@ class ProjectHasExpedientesController extends Controller
         $username = strstr($email, '@', true);
         $perUser = strtoupper(substr($username, 0, 8)) . '-M';
 
+        // Arrays de mapeo
         $estciv = [
-            'SO' => 1, // Soltero/a
-            'CA' => 2, // Casado/a
-            'SE' => 3, // Separado/a
-            'DI' => 4, // Divorciado/a
-            'VI' => 6, // Viudo/a
-            'ME' => 7, // Menor
+            'SO' => 1, 'CA' => 2, 'SE' => 3, 'DI' => 4, 'VI' => 6, 'ME' => 7,
+        ];
+        $relpar = [
+            'SO' => 1, 'CA' => 2, 'SE' => 3, 'DI' => 4, 'VI' => 6, 'ME' => 7,
         ];
 
-        $relpar = [
-            'SO' => 1, // Soltero/a
-            'CA' => 2, // Casado/a
-            'SE' => 3, // Separado/a
-            'DI' => 4, // Divorciado/a
-            'VI' => 6, // Viudo/a
-            'ME' => 7, // Menor
+        // Contadores y arrays de detalles
+        $contadores = [
+            'insertados' => 0,
+            'ya_existian' => 0,
+            'errores' => 0,
+            'estado_civil_invalido' => 0
+        ];
+
+        $detalles = [
+            'ya_existian' => [],
+            'errores' => [],
+            'estado_civil_invalido' => []
         ];
 
         foreach ($postulantes as $key => $value) {
-            $user = BAMPER::where('PerCod', $value->postulante->cedula)->first();
-
-            if (!$user) {
-                $nombre = $value->postulante->last_name . ' ' . $value->postulante->first_name;
-                $nac = new \DateTime($value->postulante->birthdate);
-                $f = date_format($nac, 'Ymd');
-
-                // Segundo nombre y apellido (si existen)
-                $nomsegpos = str_contains($value->postulante->first_name, ' ') ?
-                    substr($value->postulante->first_name, strpos($value->postulante->first_name, " ") + 1) : "";
-                $apesegpos = str_contains($value->postulante->last_name, ' ') ?
-                    substr($value->postulante->last_name, strpos($value->postulante->last_name, " ") + 1) : "";
-
-                $apepripos = strtok($value->postulante->last_name, ' ');
-                $nompripos = strtok($value->postulante->first_name, ' ');
-
-                // Validar que existe el estado civil en el array
-                $maritalStatus = $value->postulante->marital_status;
-                if (!isset($estciv[$maritalStatus])) {
-                    \Log::warning("Estado civil no encontrado: {$maritalStatus} para cédula: {$value->postulante->cedula}");
-                    continue; // Saltar este registro o asignar un valor por defecto
-                }
-
-                $reg = BAMPER::create([
-                    'PerCod' => $value->postulante->cedula,
-                    'PerNom' => $nombre,
-                    'PerApePri' => $apepripos,
-                    'PerNomPri' => $nompripos,
-                    'PerApeSeg' => $apesegpos,
-                    'PerNomSeg' => $nomsegpos,
-                    'PerDomic' => substr($value->postulante->address ?? '', 0, 60),
-                    'PerTel1' => $value->postulante->phone,
-                    'PerTel2' => $value->postulante->mobile,
-                    'PerEstCiv' => $estciv[$maritalStatus],
-                    'PerTpDoc' => 'CID',
-                    'PerFchNac' => $f,
-                    'PerSexo' => $value->postulante->gender,
-                    'ProCod' => 58,
-                    'ActCod' => 7,
-                    'PerNac' => 1,
-                    'DptoId' => 11,
-                    'CiuId' => 179,
-                    'PerRelPar' => $relpar[$maritalStatus],
-                    'PerFUM' => date_format($date, 'Ymd H:i:s'),
-                    'PerUser' => $perUser
-                ]);
-            }
+            // Procesar postulante principal
+            $resultado = $this->procesarPersona($value->postulante, $estciv, $relpar, $perUser, $date, 'postulante', $detalles);
+            $contadores[$resultado]++;
 
             // Procesar miembros
             if (count($value->members) > 0) {
                 foreach ($value->members as $member) {
-                    $miembro = BAMPER::where('PerCod', $member->miembros->cedula)->first();
-                    if (!$miembro) {
-                        $nombremiembro = $member->miembros->last_name . ' ' . $member->miembros->first_name;
-                        $nac = new \DateTime($member->miembros->birthdate);
-                        $apepri = strtok($member->miembros->last_name, ' ');
-                        $nompri = strtok($member->miembros->first_name, ' ');
-
-                        $nomseg = str_contains($member->miembros->first_name, ' ') ?
-                            substr($member->miembros->first_name, strpos($member->miembros->first_name, " ") + 1) : "";
-                        $apeseg = str_contains($member->miembros->last_name, ' ') ?
-                            substr($member->miembros->last_name, strpos($member->miembros->last_name, " ") + 1) : "";
-
-                        // Validar estado civil del miembro
-                        $memberMaritalStatus = $member->miembros->marital_status;
-                        if (!isset($estciv[$memberMaritalStatus])) {
-                            \Log::warning("Estado civil no encontrado: {$memberMaritalStatus} para cédula: {$member->miembros->cedula}");
-                            continue;
-                        }
-
-                        $reg = BAMPER::create([
-                            'PerCod' => $member->miembros->cedula,
-                            'PerNom' => $nombremiembro,
-                            'PerApePri' => $apepri,
-                            'PerNomPri' => $nompri,
-                            'PerApeSeg' => $apeseg,
-                            'PerNomSeg' => $nomseg,
-                            'PerEstCiv' => $estciv[$memberMaritalStatus],
-                            'PerDomic' => substr($member->miembros->address ?? '', 0, 60),
-                            'PerTel1' => $member->miembros->phone,
-                            'PerTel2' => $member->miembros->mobile,
-                            'PerTpDoc' => 'CID',
-                            'ProCod' => 58,
-                            'PerFchNac' => date_format($nac, 'Ymd'),
-                            'PerSexo' => $member->miembros->gender,
-                            'ActCod' => 7,
-                            'PerNac' => 1,
-                            'DptoId' => 11,
-                            'CiuId' => 179,
-                            'PerRelPar' => $relpar[$memberMaritalStatus],
-                            'PerFUM' => date_format($date, 'Ymd H:i:s'),
-                            'PerUser' => $perUser
-                        ]);
-                    }
+                    $resultado = $this->procesarPersona($member->miembros, $estciv, $relpar, $perUser, $date, 'miembro', $detalles);
+                    $contadores[$resultado]++;
                 }
             }
         }
 
-        return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR PERSONAS)');
+        // Preparar mensaje de feedback
+        $mensaje = $this->construirMensajeFeedback($contadores, $detalles);
+
+        return redirect()->back()->with('success', $mensaje);
+    }
+
+    private function procesarPersona($persona, $estciv, $relpar, $perUser, $date, $tipo, &$detalles)
+    {
+        try {
+            // Verificar si ya existe
+            $existePersona = BAMPER::where('PerCod', $persona->cedula)->first();
+            if ($existePersona) {
+                \Log::info("Persona ya existe: {$persona->cedula} - {$persona->first_name} {$persona->last_name}");
+                $detalles['ya_existian'][] = [
+                    'cedula' => $persona->cedula,
+                    'nombre' => $persona->first_name . ' ' . $persona->last_name,
+                    'tipo' => $tipo
+                ];
+                return 'ya_existian';
+            }
+
+            // Validar estado civil
+            $maritalStatus = $persona->marital_status;
+            if (!isset($estciv[$maritalStatus])) {
+                \Log::warning("Estado civil no encontrado: {$maritalStatus} para cédula: {$persona->cedula}");
+                $detalles['estado_civil_invalido'][] = [
+                    'cedula' => $persona->cedula,
+                    'nombre' => $persona->first_name . ' ' . $persona->last_name,
+                    'estado_civil' => $maritalStatus,
+                    'tipo' => $tipo
+                ];
+                return 'estado_civil_invalido';
+            }
+
+            // Preparar datos comunes
+            $datosComunes = $this->prepararDatosPersona($persona, $estciv, $relpar, $perUser, $date, $maritalStatus);
+
+            // Crear registro
+            $reg = BAMPER::create($datosComunes);
+
+            \Log::info("Persona insertada: {$persona->cedula} - {$persona->first_name} {$persona->last_name} (Tipo: {$tipo})");
+            return 'insertados';
+
+        } catch (\Exception $e) {
+            \Log::error("Error al procesar persona {$persona->cedula}: " . $e->getMessage());
+            $detalles['errores'][] = [
+                'cedula' => $persona->cedula,
+                'nombre' => $persona->first_name . ' ' . $persona->last_name,
+                'error' => $e->getMessage(),
+                'tipo' => $tipo
+            ];
+            return 'errores';
+        }
+    }
+
+    private function prepararDatosPersona($persona, $estciv, $relpar, $perUser, $date, $maritalStatus)
+    {
+        $nombre = $persona->last_name . ' ' . $persona->first_name;
+        $nac = new \DateTime($persona->birthdate);
+        $f = date_format($nac, 'Ymd');
+
+        // Procesar nombres y apellidos
+        $nomseg = str_contains($persona->first_name, ' ') ?
+            substr($persona->first_name, strpos($persona->first_name, " ") + 1) : "";
+        $apeseg = str_contains($persona->last_name, ' ') ?
+            substr($persona->last_name, strpos($persona->last_name, " ") + 1) : "";
+
+        $apepri = strtok($persona->last_name, ' ');
+        $nompri = strtok($persona->first_name, ' ');
+
+        return [
+            'PerCod' => $persona->cedula,
+            'PerNom' => $nombre,
+            'PerApePri' => $apepri,
+            'PerNomPri' => $nompri,
+            'PerApeSeg' => $apeseg,
+            'PerNomSeg' => $nomseg,
+            'PerDomic' => substr($persona->address ?? '', 0, 60),
+            'PerTel1' => $persona->phone,
+            'PerTel2' => $persona->mobile,
+            'PerEstCiv' => $estciv[$maritalStatus],
+            'PerTpDoc' => 'CID',
+            'PerFchNac' => $f,
+            'PerSexo' => $persona->gender,
+            'ProCod' => 58,
+            'ActCod' => 7,
+            'PerNac' => 1,
+            'DptoId' => 11,
+            'CiuId' => 179,
+            'PerRelPar' => $relpar[$maritalStatus],
+            'PerFUM' => date_format($date, 'Ymd H:i:s'),
+            'PerUser' => $perUser
+        ];
+    }
+
+    private function construirMensajeFeedback($contadores, $detalles)
+    {
+        $mensajes = [];
+
+        if ($contadores['insertados'] > 0) {
+            $mensajes[] = "✅ {$contadores['insertados']} personas insertadas correctamente";
+        }
+
+        if ($contadores['ya_existian'] > 0) {
+            $mensaje = "⚠️ {$contadores['ya_existian']} personas ya existían en la base de datos";
+            if (!empty($detalles['ya_existian'])) {
+                $cedulas = array_map(function($item) {
+                    return $item['cedula'] . ' (' . $item['nombre'] . ')';
+                }, $detalles['ya_existian']);
+                $mensaje .= ":\n   " . implode("\n   ", $cedulas);
+            }
+            $mensajes[] = $mensaje;
+        }
+
+        if ($contadores['estado_civil_invalido'] > 0) {
+            $mensaje = "❌ {$contadores['estado_civil_invalido']} personas omitidas por estado civil inválido";
+            if (!empty($detalles['estado_civil_invalido'])) {
+                $cedulas = array_map(function($item) {
+                    return $item['cedula'] . ' (' . $item['nombre'] . ') - Estado: ' . $item['estado_civil'];
+                }, $detalles['estado_civil_invalido']);
+                $mensaje .= ":\n   " . implode("\n   ", $cedulas);
+            }
+            $mensajes[] = $mensaje;
+        }
+
+        if ($contadores['errores'] > 0) {
+            $mensaje = "🔴 {$contadores['errores']} personas con errores durante la inserción";
+            if (!empty($detalles['errores'])) {
+                $cedulas = array_map(function($item) {
+                    return $item['cedula'] . ' (' . $item['nombre'] . ') - Error: ' . substr($item['error'], 0, 50) . '...';
+                }, $detalles['errores']);
+                $mensaje .= ":\n   " . implode("\n   ", $cedulas);
+            }
+            $mensajes[] = $mensaje;
+        }
+
+        $total = array_sum($contadores);
+        $titulo = "MIGRACIÓN COMPLETADA - Total procesadas: {$total}";
+
+        return $titulo . "\n\n" . implode("\n\n", $mensajes);
     }
 
 
@@ -268,7 +326,7 @@ class ProjectHasExpedientesController extends Controller
 
 
 
-public function migracionsolicitantes($projectHasExpediente)
+    public function migracionsolicitantes($projectHasExpediente)
     {
 
         //return "migracio solicitantes";
