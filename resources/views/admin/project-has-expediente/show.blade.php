@@ -59,7 +59,9 @@
                                     <th class="d-none d-sm-block" scope="row">{{$key+1}}</th>
                                     <td>{{ $item->postulante->first_name }} {{ $item->postulante->last_name }}</td>
                                     <td class="text-center">{{ number_format((int)$item->postulante->cedula,0,".",".")  }}</td>
-                                    <td class="text-center">{{ $item->postulante->birthdate }}</td>
+                                    <td class="text-center">
+                                        {{ \Carbon\Carbon::parse($item->postulante->birthdate)->format('d/m/Y') }}
+                                    </td>
                                     <td class="text-center">{{ number_format((int)$item->postulante->ingreso,0,".",".") }}</td>
                                     <td class="text-center">{{ $item->members_count }}</td>
                                         <td>

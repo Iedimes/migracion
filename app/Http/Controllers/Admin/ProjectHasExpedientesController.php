@@ -133,9 +133,11 @@ class ProjectHasExpedientesController extends Controller
         return view('admin.project-has-expediente.migracion', compact('project'));
     }
 
-public function migracionpersonas($projectHasExpediente)
+    public function migracionpersonas($projectHasExpediente)
     {
-        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
+        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)
+                                    ->whereNull('deleted_at')
+                                    ->get();
         $date = new \DateTime();
         $email = Auth::user()->email;
 
@@ -283,29 +285,341 @@ public function migracionpersonas($projectHasExpediente)
         }
 
         if ($contadores['ya_existian'] > 0) {
-            $mensaje = "⚠️ {$contadores['ya_existian']} personas ya existían en la base de datos";
-            if (!empty($detalles['ya_existian'])) {
+            $mensajes[] = "⚠️ {$contadores['ya_existian']} personas ya existían en la base de datos";
+        }
+
+        if ($contadores['estado_civil_invalido'] > 0) {
+            $mensajes[] = "❌ {$contadores['estado_civil_invalido']} personas omitidas por estado civil inválido";
+        }
+
+        if ($contadores['errores'] > 0) {
+            $mensajes[] = "🔴 {$contadores['errores']} personas con errores durante la inserción";
+        }
+
+        $total = array_sum($contadores);
+        $titulo = "MIGRACIÓN PERSONAS COMPLETADA - Total procesadas: {$total}";
+
+        return $titulo . "\n\n" . implode("\n", $mensajes);
+    }
+
+
+
+
+
+
+
+    public function migracionsolicitantes($projectHasExpediente)
+    {
+        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)
+                        ->whereNull('deleted_at')
+                        ->get();
+
+        $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
+        $date = new \DateTime();
+        $email = Auth::user()->email;
+        $userCode = strtoupper(substr(strstr($email, '@', true), 0, 8)) . '-M';
+
+        // Array de mapeo de parentescos
+        $parent = [
+            1 => 1,   // Esposo/a
+            2 => 3,   // Hermano/a
+            3 => 2,   // Hijo/a
+            4 => 4,   // Padre/Madre
+            7 => 9,   // Sobrino/a
+            8 => 1,   // Concubino/a
+            9 => 5,   // Abuelo/a
+            10 => 6,  // Tío/a
+            11 => 5,  // Nieto/a
+            14 => 10  // Yerno/Nuera
+        ];
+
+
+        // Contadores y detalles para feedback
+        $contadores = [
+            'solicitantes_insertados' => 0,
+            'solicitantes_actualizados' => 0,
+            'grupos_insertados' => 0,
+            'grupos_actualizados' => 0,
+            'miembros_insertados' => 0,
+            'miembros_actualizados' => 0,
+            'errores' => 0,
+            'mesa_no_encontrada' => 0,
+            'persona_no_encontrada' => 0
+        ];
+
+        $detalles = [
+            'errores' => [],
+            'mesa_no_encontrada' => [],
+            'persona_no_encontrada' => []
+        ];
+
+        foreach ($postulantes as $postulante) {
+            $resultado = $this->procesarSolicitante($postulante, $exp, $parent, $userCode, $date, $contadores, $detalles);
+        }
+
+        $mensaje = $this->construirMensajeFeedbackSolicitantes($contadores, $detalles);
+        return redirect()->back()->with('success', $mensaje);
+    }
+
+    private function procesarSolicitante($postulante, $exp, $parent, $userCode, $date, &$contadores, &$detalles)
+    {
+        try {
+            // Buscar datos de mesa
+            $mesa = SIG005L1::where('ExpDPerCod', $postulante->postulante->cedula)
+                ->where('NroExp', $exp->exp)
+                ->first();
+
+            if (!$mesa) {
+                $detalles['mesa_no_encontrada'][] = [
+                    'cedula' => $postulante->postulante->cedula,
+                    'nombre' => $postulante->postulante->first_name . ' ' . $postulante->postulante->last_name,
+                    'exp' => $exp->exp
+                ];
+                $contadores['mesa_no_encontrada']++;
+                return;
+            }
+
+            // Procesar solicitante principal
+            $this->procesarIVMSOL($postulante, $mesa, $exp, $userCode, $date, $contadores);
+
+            // Procesar grupo familiar (postulante principal)
+            $this->procesarGrupoFamiliar($postulante->postulante, $postulante->postulante->cedula,
+                                    $mesa, 8, $userCode, $date, $contadores, $detalles);
+
+            // Procesar miembros
+            if (count($postulante->members) > 0) {
+                foreach ($postulante->members as $member) {
+                    $parentCod = $parent[$member->parentesco->id] ?? 1;
+                    $this->procesarGrupoFamiliar($member->miembros, $postulante->postulante->cedula,
+                                            $mesa, $parentCod, $userCode, $date, $contadores, $detalles);
+                }
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("Error procesando solicitante {$postulante->postulante->cedula}: " . $e->getMessage());
+            $detalles['errores'][] = [
+                'cedula' => $postulante->postulante->cedula,
+                'nombre' => $postulante->postulante->first_name . ' ' . $postulante->postulante->last_name,
+                'error' => $e->getMessage()
+            ];
+            $contadores['errores']++;
+        }
+    }
+
+    private function procesarIVMSOL($postulante, $mesa, $exp, $userCode, $date, &$contadores)
+    {
+        $expfec = new \DateTime($mesa->ExpDFec);
+        $solpercge = $postulante->conyuge ? $postulante->conyuge->miembros->cedula : '';
+
+        $datosIVMSOL = [
+            'SolPerCod' => $postulante->postulante->cedula,
+            'SolSer' => substr($mesa->ExpDNro, -2),
+            'SolNro' => substr($mesa->ExpDNro, 0, -2),
+            'SolFch' => date_format($expfec, 'Ymd H:i:s'),
+            'SolTieUni' => '',
+            'SolAuto' => 'N',
+            'SolEquipo' => 'N',
+            'SolMaquin' => 'N',
+            'SolAnimal' => 'N',
+            'SolOtros' => '',
+            'SolTipo' => 12,
+            'SolInscri' => $userCode,
+            'SolComent' => "Exp. Social: " . $exp->exp . " Codigo de Proyecto: " . $exp->project_id,
+            'SolPerCge' => $solpercge,
+            'SolHabViv' => '',
+            'SolFum' => date_format($date, 'Ymd H:i:s'),
+            'SolEtapa' => 'S',
+            'SolReFecAd' => null,
+            'SolReNroAd' => null,
+            'SolCodObra' => null,
+        ];
+
+        $existeSolicitante = IVMSOL::where('SolPerCod', $postulante->postulante->cedula)->first();
+
+        if ($existeSolicitante) {
+            $existeSolicitante->update($datosIVMSOL);
+            $contadores['solicitantes_actualizados']++;
+            \Log::info("Solicitante actualizado: {$postulante->postulante->cedula}");
+        } else {
+            IVMSOL::create($datosIVMSOL);
+            $contadores['solicitantes_insertados']++;
+            \Log::info("Solicitante insertado: {$postulante->postulante->cedula}");
+        }
+    }
+
+    private function procesarGrupoFamiliar($persona, $solPerCod, $mesa, $parentCod, $userCode, $date, &$contadores, &$detalles)
+    {
+        $personaBamper = BAMPER::where('PerCod', $persona->cedula)->first();
+        if (!$personaBamper) {
+            $detalles['persona_no_encontrada'][] = [
+                'cedula' => $persona->cedula,
+                'nombre' => $persona->first_name . ' ' . $persona->last_name,
+                'motivo' => 'No encontrada en BAMPER'
+            ];
+            $contadores['persona_no_encontrada']++;
+            return;
+        }
+
+        $datecalc = new \DateTime($personaBamper->PerFchNac);
+        $now = new \DateTime($mesa->ExpDFec);
+        $interval = $now->diff($datecalc);
+
+        $dis = $this->determinarDiscapacidad($persona);
+
+        \Log::info("=== ANTES DE PROCESAR MONTO ===");
+        \Log::info("Persona: {$persona->cedula}");
+        \Log::info("Ingreso crudo: " . var_export($persona->ingreso, true));
+
+        $montoProcesado = $this->procesarMonto($persona->ingreso);
+
+        \Log::info("Monto procesado: " . var_export($montoProcesado, true));
+        \Log::info("Tipo de dato del monto procesado: " . gettype($montoProcesado));
+
+        $datosGrupoFamiliar = [
+            'GfsEdad' => $interval->y,
+            'ParCod' => $parentCod,
+            'GfsDis' => $dis,
+            'GfsImpSue' => $montoProcesado,
+            'GfsImpApo' => 0.00,
+            'GfsUsuCod' => $userCode,
+            'GfsFecAlta' => date_format($date, 'Ymd H:i:s'),
+            'GfsPEC' => 'N',
+        ];
+
+        $existeGrupo = IVMSOL2::where('SolPerCod', $solPerCod)
+                            ->where('GfsCod', $persona->cedula)
+                            ->first();
+
+        if ($existeGrupo) {
+            \Log::info("🟡 Forzando update en BD con:");
+            \Log::info(print_r($datosGrupoFamiliar, true));
+
+            \DB::connection('sqlsrv')->table('IVMSOL2')
+        ->where('SolPerCod', $solPerCod)
+        ->where('GfsCod', $persona->cedula)
+        ->update($datosGrupoFamiliar);
+
+
+            $registroActualizado = IVMSOL2::where('SolPerCod', $solPerCod)
+                                        ->where('GfsCod', $persona->cedula)
+                                        ->first();
+            \Log::info("=== DESPUÉS DEL UPDATE ===");
+            \Log::info("Persona: {$persona->cedula}");
+            \Log::info("GfsImpSue guardado: " . var_export($registroActualizado->GfsImpSue, true));
+
+            if ($parentCod == 8) {
+                $contadores['grupos_actualizados']++;
+            } else {
+                $contadores['miembros_actualizados']++;
+            }
+            \Log::info("Grupo familiar actualizado: {$persona->cedula} para solicitante: {$solPerCod}");
+        } else {
+            IVMSOL2::create([
+                'SolPerCod' => $solPerCod,
+                'GfsCod' => $persona->cedula,
+            ] + $datosGrupoFamiliar);
+
+            if ($parentCod == 8) {
+                $contadores['grupos_insertados']++;
+            } else {
+                $contadores['miembros_insertados']++;
+            }
+            \Log::info("Grupo familiar insertado: {$persona->cedula} para solicitante: {$solPerCod}");
+        }
+    }
+
+
+    private function determinarDiscapacidad($persona)
+    {
+        if (!isset($persona->discapacidad) ||
+            $persona->discapacidad->discapacidad_id == null ||
+            $persona->discapacidad->discapacidad_id == '') {
+            return 'S'; // Sin discapacidad
+        } elseif ($persona->discapacidad->discapacidad_id == 1) {
+            return 'N'; // Con discapacidad
+        } else {
+            return 'S'; // Sin discapacidad
+        }
+    }
+
+        private function procesarMonto($monto)
+    {
+        \Log::info("🔎 procesarMonto recibido: " . var_export($monto, true));
+
+        if (is_null($monto) || $monto === '' || $monto === 0 || $monto === '0,00' || $monto === '0.00') {
+            return 0.00;
+        }
+
+        if (is_string($monto)) {
+            // Caso "1.250.000,00"
+            if (preg_match('/^[\d.]+,\d{2}$/', $monto)) {
+                $monto = str_replace('.', '', $monto);
+                $monto = str_replace(',', '.', $monto);
+            } elseif (strpos($monto, ',') !== false) {
+                // Caso "2500,00"
+                $monto = str_replace(',', '.', $monto);
+            }
+        }
+
+        $valorFinal = (float) number_format(floatval($monto), 2, '.', '');
+        \Log::info("🔁 procesarMonto procesado: {$valorFinal}");
+
+        return $valorFinal;
+    }
+
+
+
+
+
+    private function construirMensajeFeedbackSolicitantes($contadores, $detalles)
+    {
+        $mensajes = [];
+
+        // Resultados exitosos
+        if ($contadores['solicitantes_insertados'] > 0) {
+            $mensajes[] = "✅ {$contadores['solicitantes_insertados']} solicitantes insertados";
+        }
+        if ($contadores['solicitantes_actualizados'] > 0) {
+            $mensajes[] = "🔄 {$contadores['solicitantes_actualizados']} solicitantes actualizados";
+        }
+        if ($contadores['grupos_insertados'] > 0) {
+            $mensajes[] = "✅ {$contadores['grupos_insertados']} grupos familiares insertados";
+        }
+        if ($contadores['grupos_actualizados'] > 0) {
+            $mensajes[] = "🔄 {$contadores['grupos_actualizados']} grupos familiares actualizados";
+        }
+        if ($contadores['miembros_insertados'] > 0) {
+            $mensajes[] = "✅ {$contadores['miembros_insertados']} miembros insertados";
+        }
+        if ($contadores['miembros_actualizados'] > 0) {
+            $mensajes[] = "🔄 {$contadores['miembros_actualizados']} miembros actualizados";
+        }
+
+        // Problemas encontrados
+        if ($contadores['mesa_no_encontrada'] > 0) {
+            $mensaje = "⚠️ {$contadores['mesa_no_encontrada']} solicitantes sin datos de mesa";
+            if (!empty($detalles['mesa_no_encontrada'])) {
                 $cedulas = array_map(function($item) {
-                    return $item['cedula'] . ' (' . $item['nombre'] . ')';
-                }, $detalles['ya_existian']);
+                    return $item['cedula'] . ' (' . $item['nombre'] . ') - Exp: ' . $item['exp'];
+                }, $detalles['mesa_no_encontrada']);
                 $mensaje .= ":\n   " . implode("\n   ", $cedulas);
             }
             $mensajes[] = $mensaje;
         }
 
-        if ($contadores['estado_civil_invalido'] > 0) {
-            $mensaje = "❌ {$contadores['estado_civil_invalido']} personas omitidas por estado civil inválido";
-            if (!empty($detalles['estado_civil_invalido'])) {
+        if ($contadores['persona_no_encontrada'] > 0) {
+            $mensaje = "⚠️ {$contadores['persona_no_encontrada']} personas no encontradas en BAMPER";
+            if (!empty($detalles['persona_no_encontrada'])) {
                 $cedulas = array_map(function($item) {
-                    return $item['cedula'] . ' (' . $item['nombre'] . ') - Estado: ' . $item['estado_civil'];
-                }, $detalles['estado_civil_invalido']);
+                    return $item['cedula'] . ' (' . $item['nombre'] . ')';
+                }, $detalles['persona_no_encontrada']);
                 $mensaje .= ":\n   " . implode("\n   ", $cedulas);
             }
             $mensajes[] = $mensaje;
         }
 
         if ($contadores['errores'] > 0) {
-            $mensaje = "🔴 {$contadores['errores']} personas con errores durante la inserción";
+            $mensaje = "🔴 {$contadores['errores']} errores durante el procesamiento";
             if (!empty($detalles['errores'])) {
                 $cedulas = array_map(function($item) {
                     return $item['cedula'] . ' (' . $item['nombre'] . ') - Error: ' . substr($item['error'], 0, 50) . '...';
@@ -315,164 +629,13 @@ public function migracionpersonas($projectHasExpediente)
             $mensajes[] = $mensaje;
         }
 
-        $total = array_sum($contadores);
-        $titulo = "MIGRACIÓN COMPLETADA - Total procesadas: {$total}";
+        $totalProcesados = $contadores['solicitantes_insertados'] + $contadores['solicitantes_actualizados'] +
+                        $contadores['grupos_insertados'] + $contadores['grupos_actualizados'] +
+                        $contadores['miembros_insertados'] + $contadores['miembros_actualizados'];
+
+        $titulo = "MIGRACIÓN DE SOLICITANTES COMPLETADA - Total procesados: {$totalProcesados}";
 
         return $titulo . "\n\n" . implode("\n\n", $mensajes);
-    }
-
-
-
-
-
-
-    public function migracionsolicitantes($projectHasExpediente)
-    {
-
-        //return "migracio solicitantes";
-        $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)
-                        ->whereNull('deleted_at')
-                        ->get();
-        // return $contar=count($postulantes);
-        //return $postulantes;
-        $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
-        //return $exp->project_id;
-        $date = new \DateTime();
-        $email = Auth::user()->email;
-
-        $parent = array(
-            1 => 1,
-            2 => 3,
-            3 => 2,
-            4 => 4,
-            7 => 9,
-            8 => 1,
-            9 => 5,
-            10 => 6,
-            11 => 5,
-            14 => 10,
-        );
-
-        foreach ($postulantes as $key => $value) {
-
-            $user = IVMSOL::where('SolPerCod',  $value->postulante->cedula)->first();
-            // dd($value->postulante->cedula);
-            $mesa = SIG005L1::where('ExpDPerCod',  $value->postulante->cedula)
-                ->where('NroExp', $exp->exp)
-                ->first();
-                // dd($mesa);
-            $expfec =
-                $nac = new \DateTime($mesa->ExpDFec);
-            if (is_null($value->conyuge)) {
-                  $solpercge = "";
-            } else {
-                $solpercge = $value->conyuge->miembros->cedula;
-            }
-
-            if (!$user) {
-
-                $reg = IVMSOL::create([
-                    'SolPerCod' => $value->postulante->cedula,
-                    'SolSer' => substr($mesa->ExpDNro, -2),
-                    'SolNro' => substr($mesa->ExpDNro, 0, -2),
-                    'SolFch' => date_format($expfec, 'Ymd H:i:s'),
-                    'SolTieUni' => '',
-                    'SolAuto' => 'N',
-                    'SolEquipo' => 'N',
-                    'SolMaquin' => 'N',
-                    'SolAnimal' => 'N',
-                    'SolOtros' => '',
-                    'SolTipo' => 12,
-                    'SolInscri' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                    'SolComent' => '',
-                    'SolPerCge' => $solpercge,
-                    'SolHabViv' => '',
-                    'SolFum' => date_format($date, 'Ymd H:i:s'),
-                    'SolEtapa' => 'S',
-                    'SolReFecAd' => null,
-                    'SolReNroAd' => null,
-                    'SolCodObra' => null,
-                    'SolComent' => "Exp. Social: " . $exp->exp . " Codigo de Proyecto: " . $exp->project_id,
-
-                ]);
-            }
-            $pos = BAMPER::where('PerCod', $value->postulante->cedula)->first();
-            $posivms = IVMSOL2::where('GfsCod', $value->postulante->cedula)->first();
-            //return $pos;
-            $datecalc = new \DateTime($pos->PerFchNac);
-            $now = new \DateTime($mesa->ExpDFec);
-            $interval = $now->diff($datecalc);
-            if (
-                !isset($value->postulante->discapacidad) ||
-                $value->postulante->discapacidad->discapacidad_id == null ||
-                $value->postulante->discapacidad->discapacidad_id == ''
-            ) {
-                $dis = 'S';
-            } else {
-                $dis = 'N';
-            }
-
-
-            if (!$posivms) {
-
-                $reg = IVMSOL2::create([
-                    'SolPerCod' => $value->postulante->cedula,
-                    'GfsCod' => $value->postulante->cedula,
-                    'GfsEdad' => $interval->y,
-                    'ParCod' => 8,
-                    'GfsDis' => $dis,
-                    'GfsImpSue' => $value->postulante->ingreso,
-                    'GfsImpApo' => 0,
-                    'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                    'GfsFecAlta' => date_format($date, 'Ymd H:i:s'),
-                    'GfsPEC' => 'N'
-
-                ]);
-            }
-
-            if (count($value->members) > 0) {
-                //return "No vacio";
-                foreach ($value->members as $member) {
-
-                    $miembro = IVMSOL2::where('GfsCod', $member->miembros->cedula)->first();
-                    if (!$miembro) {
-                        $pos = BAMPER::where('PerCod', $member->miembros->cedula)->first();
-                        //$posivms = IVMSOL2::where('GfsCod', $member->postulante->cedula)->first();
-                        //return $pos;
-                        $datecalmember = new \DateTime($pos->PerFchNac);
-                        $now = new \DateTime($mesa->ExpDFec);
-                        $interval = $now->diff($datecalmember);
-                        if (
-                            !isset($member->miembros->discapacidad) ||
-                            $member->miembros->discapacidad->discapacidad_id == null ||
-                            $member->miembros->discapacidad->discapacidad_id === ''
-                        ) {
-                            $dis = 'S';
-                        } elseif ($member->miembros->discapacidad->discapacidad_id == 1) {
-                            $dis = 'N';
-                        } else {
-                            $dis = 'S';
-                        }
-
-                        $reg = IVMSOL2::create([
-                            'SolPerCod' => $value->postulante->cedula,
-                            'GfsCod' => $member->miembros->cedula,
-                            'GfsEdad' => $interval->y,
-                            'ParCod' =>  $parent[$member->parentesco->id],
-                            'GfsDis' => $dis,
-                            'GfsImpSue' => $member->miembros->ingreso,
-                            'GfsImpApo' => 0,
-                            'GfsUsuCod' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                            'GfsFecAlta' => date_format($date, 'Ymd H:i:s'),
-                            'GfsPEC' => 'N'
-
-                        ]);
-                    }
-                }
-            }
-        }
-
-        return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR SOLICITANTES)');
     }
 
 
@@ -486,113 +649,25 @@ public function migracionpersonas($projectHasExpediente)
             $exp = ProjectHasExpediente::where('project_id', $projectHasExpediente)->first();
             $date = new \DateTime();
             $email = Auth::user()->email;
+            $username = strstr($email, '@', true);
+            $perUser = strtoupper(substr($username, 0, 8)) . '-M';
 
-            if ($reg) {
-                POSSVS::where('PsvCod', $reg->PsvCod)->update([
-                    'PsvModDes' => trim($Nomproy->name),
-                    'NucCod' => trim($Nomproy->sat_id),
-                    'PsvDptoId' => $Nomproy->state_id,
-                    'PsvCiudId' => $Nomproy->city_id
-                ]);
-
-                $postulantes = ProjectHasPostulante::where('project_id', $projectHasExpediente)->get();
-
-                foreach ($postulantes as $key => $value) {
-                    try {
-                        Log::info("Procesando postulante ID {$value->id}");
-
-                        $user = POSSVS1::where('PsvCedTit', $value->postulante->cedula)
-                            ->where('PsvCod', $request->id)
-                            ->first();
-
-                        $nombre = $value->postulante->last_name . ', ' . $value->postulante->first_name;
-
-                        $mesa = SIG005L1::where('ExpDPerCod', $value->postulante->cedula)
-                            ->where('NroExp', $exp->exp ?? null)
-                            ->first();
-
-                        if (!$mesa) {
-                            Log::warning("No se encontró 'mesa' para {$value->postulante->cedula}");
-                            continue;
-                        }
-
-                        // Cónyuge
-                        if (is_null($value->conyuge)) {
-                            $solpercge = "";
-                            $conyuname = "";
-                            $ingconyuge = 0;
-                            $c = null;
-                        } else {
-                            $solpercge = $value->conyuge->miembros->cedula ?? "";
-                            $conyuname = ($value->conyuge->miembros->last_name ?? "") . ", " . ($value->conyuge->miembros->first_name ?? "");
-                            $ingconyuge = $value->conyuge->miembros->ingreso ?? 0;
-                            $con = $value->conyuge->miembros->birthdate ?? null;
-                            $c = $con ? date_format(new \DateTime($con), 'Ymd') : null;
-                        }
-
-                        $discapacidad_id = optional($value->postulante->discapacidad)->discapacidad_id ?? 1;
-                        $dis = $discapacidad_id == 1 ? 'N' : 'S';
-
-                        $nac = $value->postulante->birthdate ?? null;
-                        $f = $nac ? date_format(new \DateTime($nac), 'Ymd') : null;
-
-                        $direccion = substr($value->postulante->address ?? '', 0, 60);
-
-                        if (!$user) {
-                            $data = [
-                                'PsvCod' => $request->id,
-                                'Psvord' => $key + 1,
-                                'PsvBibNro' => 0,
-                                'PsvExpNro' => $mesa->ExpDNro,
-                                'PsvExpS' => 'A',
-                                'PsvTDPos' => 'C',
-                                'PsvTDPosM' => '',
-                                'PsvCedTit' => $value->postulante->cedula,
-                                // 'PsvNomTit' => trim(mb_convert_encoding($nombre, 'Windows-1252', 'UTF-8')),
-                                'PsvNomTit' => trim($nombre),
-                                'PsvTDCge' => 'C',
-                                'PsvTDCgeM' => '',
-                                'PsvCedCge' => $solpercge,
-                                // 'PsvNomCge' => trim(mb_convert_encoding($conyuname, 'Windows-1252', 'UTF-8')),
-                                'PsvNomCge' => trim($conyuname),
-                                'PsvNivel' => 4,
-                                'PsvCanHij' => $value->childrens_count ?? 0,
-                                'PsvDiscap' => $dis,
-                                'PsvTerEdad' => 'N',
-                                'PsvSosten' => 'N',
-                                'PsvAporte' => 0,
-                                'PsvIfac' => '',
-                                'PsvDomi' => trim($direccion),
-                                'PsvObs' => '',
-                                'PsvRegCon' => 'S',
-                                'PsvUsuIng' => strtoupper(substr(strstr($email, '@', true), 0, 10)),
-                                'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
-                                'PsvIngTit' => $value->postulante->ingreso ?? 0,
-                                'PsvIngCge' => $ingconyuge,
-                                'PsvIngOtr' => 0,
-                                'PsvIngFam' => ($value->postulante->ingreso ?? 0) + $ingconyuge,
-                                'PsvNomSos' => '',
-                                'PsvCgeFNac' => $c,
-                                'PsvTitFNac' => $f,
-                                'PsvTerreno' => trim($tipoterreno->name)
-                            ];
-
-                            Log::debug("Datos a insertar para cedula {$value->postulante->cedula}:", $data);
-
-                            POSSVS1::create($data);
-
-                            Log::info("Insertado exitosamente: {$value->postulante->cedula}");
-                        }
-                    } catch (\Exception $e) {
-                        Log::error("Error al procesar postulante {$value->id}: " . $e->getMessage(), [
-                            'trace' => $e->getTraceAsString()
-                        ]);
-                    }
-                }
-
-                return redirect()->back()->with('success', 'Datos Migrados Correctamente! (MIGRAR SHD)');
-            } else {
+            if (!$reg) {
                 return redirect()->back()->with('error', 'No se encontró planilla SHD!');
+            }
+
+            // Actualizar registro principal
+            $this->updateMainRecord($reg, $Nomproy, $request->id);
+
+            // Procesar postulantes
+            $result = $this->processPostulantes($projectHasExpediente, $request->id, $exp, $tipoterreno, $perUser);
+
+            if ($result['success']) {
+                return redirect()->back()->with('success',
+                    "Datos Migrados Correctamente! ({$result['processed']}/{$result['total']} procesados)");
+            } else {
+                return redirect()->back()->with('warning',
+                    "Migración parcial: {$result['processed']}/{$result['total']} procesados. Revisar logs.");
             }
 
         } catch (\Exception $e) {
@@ -603,6 +678,176 @@ public function migracionpersonas($projectHasExpediente)
         }
     }
 
+    private function updateMainRecord($reg, $Nomproy, $requestId)
+    {
+        POSSVS::where('PsvCod', $reg->PsvCod)->update([
+            'PsvModDes' => trim($Nomproy->name),
+            'NucCod' => trim($Nomproy->sat_id),
+            'PsvDptoId' => $Nomproy->state_id,
+            'PsvCiudId' => $Nomproy->city_id
+        ]);
+    }
+
+    private function processPostulantes($projectId, $requestId, $exp, $tipoterreno, $perUser)
+    {
+        $postulantes = ProjectHasPostulante::with([
+            'postulante.discapacidad',
+            'conyuge.miembros'
+        ])
+        ->where('project_id', $projectId)
+        ->whereNull('deleted_at')
+        ->get();
+
+
+        $processed = 0;
+        $errors = 0;
+        $total = $postulantes->count();
+
+        foreach ($postulantes as $key => $postulante) {
+            try {
+                if ($this->processIndividualPostulante($postulante, $key, $requestId, $exp, $tipoterreno, $perUser)) {
+                    $processed++;
+                }
+            } catch (\Exception $e) {
+                $errors++;
+                Log::error("Error al procesar postulante {$postulante->id}: " . $e->getMessage(), [
+                    'postulante_id' => $postulante->id,
+                    'cedula' => $postulante->postulante->cedula ?? 'N/A',
+                    'trace' => $e->getTraceAsString()
+                ]);
+            }
+        }
+
+        return [
+            'success' => $errors === 0,
+            'processed' => $processed,
+            'total' => $total,
+            'errors' => $errors
+        ];
+    }
+
+    private function processIndividualPostulante($postulante, $key, $requestId, $exp, $tipoterreno, $perUser)
+    {
+        Log::info("Procesando postulante ID {$postulante->id}");
+
+        // Verificar si ya existe
+        $existingUser = POSSVS1::where('PsvCedTit', $postulante->postulante->cedula)
+            ->where('PsvCod', $requestId)
+            ->first();
+
+        if ($existingUser) {
+            Log::info("Postulante ya existe: {$postulante->postulante->cedula}");
+            return false;
+        }
+
+        // Verificar mesa
+        $mesa = SIG005L1::where('ExpDPerCod', $postulante->postulante->cedula)
+            ->where('NroExp', $exp->exp ?? null)
+            ->first();
+
+        if (!$mesa) {
+            Log::warning("No se encontró 'mesa' para {$postulante->postulante->cedula}");
+            return false;
+        }
+
+        // Preparar datos del cónyuge
+        $conyugeData = $this->prepareConyugeData($postulante->conyuge);
+
+        // Preparar datos del postulante
+        $postulanteData = $this->preparePostulanteData(
+            $postulante,
+            $key,
+            $requestId,
+            $mesa,
+            $conyugeData,
+            $tipoterreno,
+            $perUser
+        );
+
+        Log::debug("Datos a insertar para cedula {$postulante->postulante->cedula}:", $postulanteData);
+
+        POSSVS1::create($postulanteData);
+        Log::info("Insertado exitosamente: {$postulante->postulante->cedula}");
+
+        return true;
+    }
+
+    private function prepareConyugeData($conyuge)
+    {
+        if (is_null($conyuge) || is_null($conyuge->miembros)) {
+            return [
+                'cedula' => '',
+                'nombre' => '',
+                'ingreso' => 0,
+                'fecha_nacimiento' => null
+            ];
+        }
+
+        $miembro = $conyuge->miembros;
+
+        return [
+            'cedula' => $miembro->cedula ?? '',
+            'nombre' => trim(($miembro->last_name ?? '') . ', ' . ($miembro->first_name ?? '')),
+            'ingreso' => $miembro->ingreso ?? 0,
+            'fecha_nacimiento' => $miembro->birthdate ?
+                date_format(new \DateTime($miembro->birthdate), 'Ymd') : null
+        ];
+    }
+
+    private function preparePostulanteData($postulante, $key, $requestId, $mesa, $conyugeData, $tipoterreno, $perUser)
+    {
+        $persona = $postulante->postulante;
+        $date = new \DateTime();
+
+        $discapacidadId = optional($persona->discapacidad)->discapacidad_id ?? 1;
+        $tieneDiscapacidad = $discapacidadId == 1 ? 'N' : 'S';
+
+        $fechaNacimiento = $persona->birthdate ?
+            date_format(new \DateTime($persona->birthdate), 'Ymd') : null;
+
+        $direccion = substr($persona->address ?? '', 0, 60);
+        $nombreCompleto = trim($persona->last_name . ', ' . $persona->first_name);
+
+        $ingresoTitular = $persona->ingreso ?? 0;
+        $ingresoConyuge = $conyugeData['ingreso'];
+        $ingresoFamiliar = $ingresoTitular + $ingresoConyuge;
+
+        return [
+            'PsvCod' => $requestId,
+            'Psvord' => $key + 1,
+            'PsvBibNro' => 0,
+            'PsvExpNro' => $mesa->ExpDNro,
+            'PsvExpS' => 'A',
+            'PsvTDPos' => 'C',
+            'PsvTDPosM' => '',
+            'PsvCedTit' => $persona->cedula,
+            'PsvNomTit' => $nombreCompleto,
+            'PsvTDCge' => 'C',
+            'PsvTDCgeM' => '',
+            'PsvCedCge' => $conyugeData['cedula'],
+            'PsvNomCge' => $conyugeData['nombre'],
+            'PsvNivel' => 4,
+            'PsvCanHij' => $postulante->childrens_count ?? 0,
+            'PsvDiscap' => $tieneDiscapacidad,
+            'PsvTerEdad' => 'N',
+            'PsvSosten' => 'N',
+            'PsvAporte' => 0,
+            'PsvIfac' => '',
+            'PsvDomi' => trim($direccion),
+            'PsvObs' => '',
+            'PsvRegCon' => 'S',
+            'PsvUsuIng' => $perUser,
+            'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
+            'PsvIngTit' => $ingresoTitular,
+            'PsvIngCge' => $ingresoConyuge,
+            'PsvIngOtr' => 0,
+            'PsvIngFam' => $ingresoFamiliar,
+            'PsvNomSos' => '',
+            'PsvCgeFNac' => $conyugeData['fecha_nacimiento'],
+            'PsvTitFNac' => $fechaNacimiento,
+            'PsvTerreno' => trim($tipoterreno->name)
+        ];
+    }
 
 
 
