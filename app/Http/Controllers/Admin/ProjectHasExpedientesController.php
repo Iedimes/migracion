@@ -50,7 +50,7 @@ class ProjectHasExpedientesController extends Controller
         $data = AdminListing::create(ProjectHasExpediente::class)->processRequestAndGet(
             $request,
             ['id', 'project_id', 'exp'],
-            ['id', 'exp'],
+            ['id', 'project_id', 'exp'],
             function ($query) {
                 // Solo incluir los registros que tienen un project asociado
                 $query->whereHas('project');

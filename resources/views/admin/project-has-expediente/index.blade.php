@@ -49,8 +49,9 @@
                                             </label>
                                         </th>-->
 
-                                        <!--<th is='sortable' :column="'id'">{{ trans('admin.project-has-expediente.columns.id') }}</th>-->
+                                        {{-- <th is='sortable' :column="'id'">{{ trans('admin.project-has-expediente.columns.id') }}</th>--> --}}
                                         <th is='sortable' :column="'exp'">{{ trans('admin.project-has-expediente.columns.exp') }}</th>
+                                        <th is='sortable' :column="'pro_id'">{{ trans('admin.project-has-expediente.columns.pro_id') }}</th>
                                         <th is='sortable' :column="'project_id'">{{ trans('admin.project-has-expediente.columns.project_id') }}</th>
                                         <th is='sortable' class="text-center" :column="'project_id'">{{ trans('admin.project-has-expediente.columns.postulantestotal') }}</th>
 
@@ -80,8 +81,10 @@
                                         <!--<td>@{{ item.id }}</td>-->
 
                                         <td>@{{ item.exp }}</td>
+                                        <td>@{{ item.project.id }}</td>
                                         <td>@{{ item.project.name }}</td>
                                         <td class="text-center">@{{ item.project.postulantes_count }}</td>
+
 
                                         <td>
                                             <div class="row no-gutters">
