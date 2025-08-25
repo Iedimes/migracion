@@ -730,17 +730,17 @@ class ProjectHasExpedientesController extends Controller
     {
         Log::info("Procesando postulante ID {$postulante->id}");
 
-        // Verificar si ya existe
+        // Verificar si ya existe en SQL
         $existingUser = POSSVS1::where('PsvCedTit', $postulante->postulante->cedula)
             ->where('PsvCod', $requestId)
             ->first();
 
         if ($existingUser) {
-            Log::info("Postulante ya existe: {$postulante->postulante->cedula}");
+            Log::info("Postulante ya existe en SQL: {$postulante->postulante->cedula}");
             return false;
         }
 
-        // Verificar mesa
+        // Verificar mesa en SQL
         $mesa = SIG005L1::where('ExpDPerCod', $postulante->postulante->cedula)
             ->where('NroExp', $exp->exp ?? null)
             ->first();
@@ -766,8 +766,23 @@ class ProjectHasExpedientesController extends Controller
 
         Log::debug("Datos a insertar para cedula {$postulante->postulante->cedula}:", $postulanteData);
 
+        // Insertar en SQL
         POSSVS1::create($postulanteData);
-        Log::info("Insertado exitosamente: {$postulante->postulante->cedula}");
+        Log::info("Insertado exitosamente en SQL: {$postulante->postulante->cedula}");
+
+        // 🔹 Actualizar campos adicionales en Postgres
+        $pgRecord = $postulante->postulante;
+
+        $pgRecord->ingreso = $postulanteData['PsvIngTit'];
+        $pgRecord->ingreso_familiar = $postulanteData['PsvIngFam'];
+        $pgRecord->hijo_sosten = $postulanteData['PsvSosten'];
+        $pgRecord->discapacidad = $postulanteData['PsvDiscap'];
+        $pgRecord->tercera_edad = $postulanteData['PsvTerEdad'];
+        $pgRecord->cantidad_hijos = $postulanteData['PsvCanHij'];
+        $pgRecord->nexp = $postulanteData['PsvExpNro'];
+
+        $pgRecord->save();
+        Log::info("Actualizado en Postgres postulante ID {$pgRecord->id} - Cedula {$pgRecord->cedula}");
 
         return true;
     }
