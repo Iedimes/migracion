@@ -54,4 +54,24 @@ class ProjectHasPostulante extends Model
     {
         return $this->hasone(PostulanteHasBeneficiary::class, 'postulante_id', 'postulante_id')->whereNotIn('parentesco_id', [1, 8]);
     }
+
+    public static function getNivel($id)
+    {
+        $postulante = Postulante::find($id);
+        if (!$postulante) {
+            return null;
+        }
+
+        $miembros = PostulanteHasBeneficiary::where('postulante_id', $id)->get();
+        $total = Postulante::whereIn('id', $miembros->pluck('miembro_id'))->get();
+        $ingreso = $total->sum('ingreso');
+        $grupo = $ingreso + $postulante->ingreso;
+
+        if ($grupo <= 2798309) return '4';
+        if ($grupo <= 5316789) return '3';
+        if ($grupo <= 18077086) return '2';
+        if ($grupo <= 90385435) return '1';
+
+        return null;
+    }
 }

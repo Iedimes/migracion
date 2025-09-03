@@ -780,6 +780,8 @@ class ProjectHasExpedientesController extends Controller
         $pgRecord->tercera_edad = $postulanteData['PsvTerEdad'];
         $pgRecord->cantidad_hijos = $postulanteData['PsvCanHij'];
         $pgRecord->nexp = $postulanteData['PsvExpNro'];
+        $pgRecord->otra_persona_a_cargo = 'N';
+        $pgRecord->nivel = $postulanteData['PsvNivel'];
 
         $pgRecord->save();
         Log::info("Actualizado en Postgres postulante ID {$pgRecord->id} - Cedula {$pgRecord->cedula}");
@@ -827,6 +829,9 @@ class ProjectHasExpedientesController extends Controller
         $ingresoConyuge = $conyugeData['ingreso'];
         $ingresoFamiliar = $ingresoTitular + $ingresoConyuge;
 
+        // Llamar a getNivel para obtener el nivel del postulante
+        $nivel = ProjectHasPostulante::getNivel($persona->id);
+
         return [
             'PsvCod' => $requestId,
             'Psvord' => $key + 1,
@@ -841,7 +846,7 @@ class ProjectHasExpedientesController extends Controller
             'PsvTDCgeM' => '',
             'PsvCedCge' => $conyugeData['cedula'],
             'PsvNomCge' => $conyugeData['nombre'],
-            'PsvNivel' => 4,
+            'PsvNivel' => $nivel,  // Usar el nivel obtenido
             'PsvCanHij' => $postulante->childrens_count ?? 0,
             'PsvDiscap' => $tieneDiscapacidad,
             'PsvTerEdad' => 'N',
