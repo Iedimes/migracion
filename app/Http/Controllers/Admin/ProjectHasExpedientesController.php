@@ -529,18 +529,30 @@ class ProjectHasExpedientesController extends Controller
     }
 
 
+    // private function determinarDiscapacidad($persona)
+    // {
+    //     if (!isset($persona->discapacidad) ||
+    //         $persona->discapacidad->discapacidad_id == null ||
+    //         $persona->discapacidad->discapacidad_id == '') {
+    //         return 'S'; // Sin discapacidad
+    //     } elseif ($persona->discapacidad->discapacidad_id == 1) {
+    //         return 'N'; // Con discapacidad
+    //     } else {
+    //         return 'S'; // Sin discapacidad
+    //     }
+    // }
     private function determinarDiscapacidad($persona)
     {
+        // Si no hay registro o no tiene ID, asumimos que no tiene discapacidad
         if (!isset($persona->discapacidad) ||
-            $persona->discapacidad->discapacidad_id == null ||
-            $persona->discapacidad->discapacidad_id == '') {
-            return 'S'; // Sin discapacidad
-        } elseif ($persona->discapacidad->discapacidad_id == 1) {
-            return 'N'; // Con discapacidad
-        } else {
-            return 'S'; // Sin discapacidad
+            empty($persona->discapacidad->discapacidad_id)) {
+            return 'N'; // No tiene discapacidad
         }
+
+        // Si el ID es distinto de 1, presenta algún tipo de discapacidad
+        return $persona->discapacidad->discapacidad_id == 1 ? 'N' : 'S';
     }
+
 
         private function procesarMonto($monto)
     {
