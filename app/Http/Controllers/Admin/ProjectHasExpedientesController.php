@@ -777,7 +777,6 @@ class ProjectHasExpedientesController extends Controller
         );
 
         Log::debug("Datos a insertar para cedula {$postulante->postulante->cedula}:", $postulanteData);
-
         // Insertar en SQL
         POSSVS1::create($postulanteData);
         Log::info("Insertado exitosamente en SQL: {$postulante->postulante->cedula}");
@@ -787,14 +786,15 @@ class ProjectHasExpedientesController extends Controller
 
         $pgRecord->ingreso = $postulanteData['PsvIngTit'];
         $pgRecord->ingreso_familiar = $postulanteData['PsvIngFam'];
-        $pgRecord->hijo_sosten = $postulanteData['PsvSosten'];
+        $pgRecord->hijo_sosten = $postulanteData['PsvObsSost'];
         $pgRecord->discapacidad = $postulanteData['PsvDiscap'];
         $pgRecord->tercera_edad = $postulanteData['PsvTerEdad'];
         $pgRecord->cantidad_hijos = $postulanteData['PsvCanHij'];
         $pgRecord->nexp = $postulanteData['PsvExpNro'];
         $pgRecord->otra_persona_a_cargo = 'N';
         $pgRecord->nivel = $postulanteData['PsvNivel'];
-
+        $pgRecord->composicion_del_grupo = $postulanteData['PsvObs2'];
+        $pgRecord->observacion_de_consideracion = $postulanteData['PsvObs'];
         $pgRecord->save();
         Log::info("Actualizado en Postgres postulante ID {$pgRecord->id} - Cedula {$pgRecord->cedula}");
 
@@ -862,11 +862,11 @@ class ProjectHasExpedientesController extends Controller
             'PsvCanHij' => $postulante->childrens_count ?? 0,
             'PsvDiscap' => $tieneDiscapacidad,
             'PsvTerEdad' => 'N',
-            'PsvSosten' => 'N',
+            'PsvSosten' => !empty($persona->hijo_sosten) ? 'S' : 'N',
             'PsvAporte' => 0,
             'PsvIfac' => '',
             'PsvDomi' => trim($direccion),
-            'PsvObs' => '',
+            'PsvObs' => $persona->hijo_sosten,
             'PsvRegCon' => 'S',
             'PsvUsuIng' => $perUser,
             'PsvFecIng' => date_format($date, 'Ymd H:i:s'),
