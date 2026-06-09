@@ -543,22 +543,14 @@ class ProjectHasExpedientesController extends Controller
     // }
     private function determinarDiscapacidad($persona)
     {
-        // Try the relationship first (by Postulante.id)
-        if (isset($persona->discapacidad) &&
-            !empty($persona->discapacidad->discapacidad_id)) {
-            return $persona->discapacidad->discapacidad_id == 1 ? 'N' : 'S';
-        }
-
-        // Fallback: look up by cedula on the active Postulante
-        // (handles case where postulante was soft-deleted and recreated)
-        if ($persona && $persona->cedula) {
-            $active = \App\Models\Postulante::where('cedula', $persona->cedula)
-                ->whereNull('deleted_at')
-                ->orderBy('id', 'desc')
+        // Direct DB query to avoid Eloquent eager-loading quirks
+        if ($persona && $persona->id) {
+            $phd = \DB::table('postulante_has_discapacidad')
+                ->where('postulante_id', $persona->id)
                 ->first();
-            if ($active && isset($active->discapacidad) &&
-                !empty($active->discapacidad->discapacidad_id)) {
-                return $active->discapacidad->discapacidad_id == 1 ? 'N' : 'S';
+
+            if ($phd && !empty($phd->discapacidad_id)) {
+                return $phd->discapacidad_id == 1 ? 'N' : 'S';
             }
         }
 
@@ -840,7 +832,10 @@ class ProjectHasExpedientesController extends Controller
         $persona = $postulante->postulante;
         $date = new \DateTime();
 
-        $discapacidadId = optional($persona->discapacidad)->discapacidad_id ?? 1;
+        $phd = \DB::table('postulante_has_discapacidad')
+            ->where('postulante_id', $persona->id)
+            ->first();
+        $discapacidadId = ($phd && !empty($phd->discapacidad_id)) ? $phd->discapacidad_id : 1;
         $tieneDiscapacidad = $discapacidadId == 1 ? 'N' : 'S';
 
         $fechaNacimiento = $persona->birthdate ?
