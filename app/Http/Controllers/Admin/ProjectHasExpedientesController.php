@@ -795,7 +795,7 @@ class ProjectHasExpedientesController extends Controller
         $pgRecord->tercera_edad = $postulanteData['PsvTerEdad'];
         $pgRecord->cantidad_hijos = $postulanteData['PsvCanHij'];
         $pgRecord->nexp = $postulanteData['PsvExpNro'];
-        $pgRecord->otra_persona_a_cargo = 'N';
+        $pgRecord->otra_persona_a_cargo = $postulanteData['PsvNomSos'];
         $pgRecord->nivel = $postulanteData['PsvNivel'];
         $pgRecord->composicion_del_grupo = $postulanteData['PsvObs2'];
         $pgRecord->observacion_de_consideracion = $postulanteData['PsvObs'];
@@ -883,7 +883,7 @@ class ProjectHasExpedientesController extends Controller
             'PsvIngCge' => $ingresoConyuge,
             'PsvIngOtr' => 0,
             'PsvIngFam' => $ingresoFamiliar,
-            'PsvNomSos' => '',
+            'PsvNomSos' => !empty($persona->otra_persona_a_cargo) ? $persona->otra_persona_a_cargo : '',
             'PsvCgeFNac' => $conyugeData['fecha_nacimiento'],
             'PsvTitFNac' => $fechaNacimiento,
             'PsvTerreno' => trim($tipoterreno->name)
