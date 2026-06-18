@@ -143,7 +143,7 @@ class ProjectHasExpedientesController extends Controller
 
         // Extraer y preparar el username una sola vez
         $username = strstr($email, '@', true);
-        $perUser = strtoupper(substr($username, 0, 8)) . '-M';
+        $perUser = strtoupper(substr($username, 0, 8));
 
         // Arrays de mapeo
         $estciv = [
@@ -666,7 +666,7 @@ class ProjectHasExpedientesController extends Controller
             $date = new \DateTime();
             $email = Auth::user()->email;
             $username = strstr($email, '@', true);
-            $perUser = strtoupper(substr($username, 0, 8)) . '-M';
+            $perUser = strtoupper(substr($username, 0, 8));
 
             if (!$reg) {
                 return redirect()->back()->with('error', 'No se encontró planilla SHD!');
@@ -872,7 +872,7 @@ class ProjectHasExpedientesController extends Controller
             'PsvSosten' => !empty($persona->hijo_sosten) ? 'S' : 'N',
             'PsvObsSost' => !empty($persona->hijo_sosten) ? $persona->hijo_sosten : '',
             'PsvObs2' => !empty($persona->composicion_del_grupo) ? $persona->composicion_del_grupo : '',
-            'PsvObs' => $persona->hijo_sosten,
+            'PsvObs' => $persona->observacion_de_consideracion,
             'PsvAporte' => 0,
             'PsvIfac' => '',
             'PsvDomi' => trim($direccion),
